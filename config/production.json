@@ -1,0 +1,4 @@
+{
+  "app": { "url": "https://REPLACE.vercel.app" },
+  "ai": { "provider": "gemini", "model": "gemini-2.0-flash", "supportsStructuredOutputs": "auto" }
+}
