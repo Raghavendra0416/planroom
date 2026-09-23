@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "seed": "tsx src/backend/seed.ts"
+    "seed": "node --env-file=.env.local --import tsx src/backend/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "4.0.76",
