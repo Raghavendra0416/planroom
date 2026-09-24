@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "node --import ./scripts/eslint-typescript6.mjs ./node_modules/eslint/bin/eslint.js .",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -31,13 +31,12 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@typescript/typescript6": "6.0.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "mongodb-memory-server": "11.3.0",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vitest": "5.0.1"
   },
   "allowScripts": {
