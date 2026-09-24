@@ -40,7 +40,7 @@ export function SiteHeader() {
         <nav className="site-nav">
           <Link href="/">{navHome}</Link>
           <Link href="/plans">{navPlans}</Link>
-          {actor.role === 'TEACHER' ? <Button href="/plans/new">{newPlan}</Button> : null}
+          {actor.role === 'TEACHER' ? <Link href="/plans/new">{newPlan}</Link> : null}
           {actor.role === 'HOD' ? <Link href="/hod">{navQueue}</Link> : null}
           <Button type="button" variant="quiet" onClick={() => void onSignOut()}>
             {signOut}
