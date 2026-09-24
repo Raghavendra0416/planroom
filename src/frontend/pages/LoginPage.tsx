@@ -33,20 +33,22 @@ export function LoginPage() {
       });
       if (!response.ok) {
         setFailure(true);
+        document.getElementById('login-email')?.focus();
         return;
       }
 
       await refresh();
-      router.push('/plans');
+      router.push('/');
     } catch {
       setFailure(true);
+      document.getElementById('login-email')?.focus();
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <main className="auth">
+    <div className="auth">
       <h1>{signIn}</h1>
       <form className="auth-form" noValidate onSubmit={(event) => void onSubmit(event)}>
         <label htmlFor="login-email">
@@ -89,6 +91,6 @@ export function LoginPage() {
       <p className="auth-switch">
         <Link href="/register">{register}</Link>
       </p>
-    </main>
+    </div>
   );
 }

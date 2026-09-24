@@ -135,7 +135,9 @@ export function toReviewNoteRecord(doc: object): ReviewNoteRecord {
   return {
     id: idText(prop(doc, '_id')),
     planId: idText(prop(doc, 'planId')),
-    authorId: idText(prop(doc, 'authorId')),
+    authorId: authorRefId(prop(doc, 'authorId')),
+    authorName: authorRefName(prop(doc, 'authorId')),
+    authorRole: authorRefRole(prop(doc, 'authorId')),
     body,
     kind,
     createdAt: isoTime(prop(doc, 'createdAt')),
@@ -282,6 +284,42 @@ function idText(value: unknown): string {
 }
 
 /**
+ * Reads a note author id from a raw ObjectId or a populated user document.
+ * @param value - Stored `authorId`.
+ * @returns The author id text, or an empty string when it cannot be read.
+ */
+function authorRefId(value: unknown): string {
+  if (isRecord(value) && '_id' in value) {
+    return idText(value._id);
+  }
+  return idText(value);
+}
+
+/**
+ * Reads a note author name from a populated user document.
+ * @param value - Stored `authorId`, populated when the caller joined the user.
+ * @returns The author name, or `''` when it is not joined.
+ */
+function authorRefName(value: unknown): string {
+  if (isRecord(value) && typeof value.name === 'string' && value.name.length > 0) {
+    return value.name;
+  }
+  return '';
+}
+
+/**
+ * Reads a note author role from a populated user document.
+ * @param value - Stored `authorId`, populated when the caller joined the user.
+ * @returns The author role, defaulting to teacher when it is not joined.
+ */
+function authorRefRole(value: unknown): Role {
+  if (isRecord(value) && (value.role === 'TEACHER' || value.role === 'HOD')) {
+    return value.role;
+  }
+  return 'TEACHER';
+}
+
+/**
  * Reports whether a stored note kind is one of the five kinds.
  * @param value - Stored kind.
  * @returns True for a review-note kind.
@@ -300,11 +338,11 @@ function fieldMessages(errors: Record<string, unknown>): Record<string, string> 
 
   for (const [key, value] of Object.entries(errors)) {
     if (!isRecord(value)) {
-      fields[key] = 'Invalid';
+      fields[key] = `${key} is invalid.`;
       continue;
     }
     const field = typeof value.path === 'string' && value.path.length > 0 ? value.path : key;
-    const message = typeof value.message === 'string' && value.message.length > 0 ? value.message : 'Invalid';
+    const message = typeof value.message === 'string' && value.message.length > 0 ? value.message : `${field} is invalid.`;
     fields[field] = message;
   }
 

@@ -12,7 +12,7 @@ export class ValidationError extends Error {
    */
   constructor(fields: Record<string, string>) {
     const first = Object.values(fields)[0];
-    super(typeof first === 'string' ? first : 'Invalid');
+    super(typeof first === 'string' ? first : 'Check the highlighted fields.');
     this.name = 'ValidationError';
     this.fields = fields;
   }

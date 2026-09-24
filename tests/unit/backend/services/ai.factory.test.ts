@@ -6,9 +6,9 @@ import { generateObject } from 'ai';
 import { suggestHourModel } from '@/backend/models/suggest-hour.model';
 import { AiController } from '@/backend/routes/ai/ai.controller';
 import { connectMongo, disconnectMongo } from '@/backend/server';
-import { createObjectiveSuggester } from '@/backend/services/ai/ai.factory';
+import { createLessonSuggester } from '@/backend/services/ai/ai.factory';
 import { GeminiSuggester } from '@/backend/services/ai/gemini.suggester';
-import type { ObjectiveSuggester, SuggestInput } from '@/backend/services/ai/objective-suggester';
+import type { LessonSuggester, SuggestInput, SuggestMoreInput } from '@/backend/services/ai/lesson-suggester';
 import { OpenAiCompatibleSuggester } from '@/backend/services/ai/openai-compatible.suggester';
 import { asSuggestHourCounter, reserveSuggestHour, suggestHourKey, type SuggestHourCounter } from '@/backend/services/ai/suggest-cap';
 import { AiProviderError, ConfigurationError, ValidationError } from '@/backend/utils/errors';
@@ -27,13 +27,32 @@ vi.mock('ai', () => ({
 }));
 
 const ENV_KEYS = ['AI_API_KEY', 'AI_BASE_URL'] as const;
-const DRAFT_FAILURE = 'Could not draft objectives. Write them yourself.';
-const LINES = ['Identify fractions.', 'Explain halves.', 'Compare parts.'];
+const DRAFT_FAILURE = 'Could not draft the lesson plan. Write it yourself.';
+const SUGGESTIONS = {
+  objectives: ['Identify fractions.', 'Explain halves.', 'Compare parts.'],
+  activities: ['Sort fraction cards in pairs.', 'Shade halves on a number line.', 'Compare fraction pairs and justify the order.'],
+  resources: ['Fraction cards.', 'Number-line worksheets.', 'Rulers.'],
+};
+const MORE = ['Name unit fractions.', 'Order unit fractions.', 'Build fraction walls.'];
 const PROMPT = [
-  'Write 3 to 5 lesson objectives for a school class.',
-  'Subject: Maths. Grade: 6. Topic: Fractions.',
-  'Each line starts with a verb (identify, explain, calculate, compare).',
-  'No preamble, no numbering words like Objective 1.',
+  'You are a lesson-planning assistant for school teachers.',
+  'Subject: Maths. Grade: 6. Topic: Fractions. Duration: 40 minutes.',
+  'Draft three aligned parts: objectives, activities, and resources.',
+  'Objectives: exactly 3 measurable outcomes. Each starts with a verb (identify, explain, calculate, compare).',
+  'Activities: exactly 3 sequenced learner-centered steps that teach those objectives and fit the duration.',
+  'Resources: exactly 3 practical materials needed for those activities.',
+  'Keep every item to one concise sentence a teacher can paste into a plan.',
+  'No preamble, no markdown, no numbering, no category labels inside items.',
+].join('\n');
+const MORE_PROMPT = [
+  'You are a lesson-planning assistant for school teachers.',
+  'Subject: Maths. Grade: 6. Topic: Fractions. Duration: 40 minutes.',
+  'Draft exactly 3 new objectives for the same class.',
+  'Objectives: measurable outcomes. Each starts with a verb (identify, explain, calculate, compare).',
+  'They must differ from anything already shown or written. Do not repeat an excluded line, even reworded.',
+  'Avoid: Identify fractions. | Explain halves.',
+  'Keep every item to one concise sentence a teacher can paste into a plan.',
+  'No preamble, no markdown, no numbering, no category labels inside items.',
 ].join('\n');
 
 const sample: SuggestInput = {
@@ -72,15 +91,16 @@ function hourCounter(): SuggestHourCounter & { findOneAndUpdate: ReturnType<type
   };
 }
 
-function fakeSuggester(): ObjectiveSuggester & { suggest: ReturnType<typeof vi.fn> } {
+function fakeSuggester(): LessonSuggester & { suggest: ReturnType<typeof vi.fn> } {
   return {
-    suggest: vi.fn(async () => LINES),
+    suggest: vi.fn(async () => SUGGESTIONS),
+    suggestMore: vi.fn(async () => MORE),
   };
 }
 
 function controllerFor(
   counter: SuggestHourCounter,
-  suggester: ObjectiveSuggester,
+  suggester: LessonSuggester,
   enabled = true,
 ): AiController {
   return new AiController(
@@ -93,7 +113,7 @@ function controllerFor(
   );
 }
 
-describe('createObjectiveSuggester', () => {
+describe('createLessonSuggester', () => {
   let previous: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
 
   beforeEach(() => {
@@ -112,35 +132,36 @@ describe('createObjectiveSuggester', () => {
   });
 
   it('returns OpenAiCompatibleSuggester for openai-compatible', () => {
-    expect(createObjectiveSuggester(providerConfig('openai-compatible'))).toBeInstanceOf(OpenAiCompatibleSuggester);
+    expect(createLessonSuggester(providerConfig('openai-compatible'))).toBeInstanceOf(OpenAiCompatibleSuggester);
   });
 
   it('returns GeminiSuggester for gemini', () => {
-    expect(createObjectiveSuggester(providerConfig('gemini'))).toBeInstanceOf(GeminiSuggester);
+    expect(createLessonSuggester(providerConfig('gemini'))).toBeInstanceOf(GeminiSuggester);
   });
 
   it('throws ConfigurationError for an unknown provider and does not call a vendor', () => {
-    expect(() => createObjectiveSuggester(providerConfig('anthropic'))).toThrow(ConfigurationError);
+    expect(() => createLessonSuggester(providerConfig('anthropic'))).toThrow(ConfigurationError);
     expect(createOpenAICompatible).not.toHaveBeenCalled();
     expect(createGoogle).not.toHaveBeenCalled();
   });
 
   it('throws ConfigurationError for an empty-string provider and does not call a vendor', () => {
-    expect(() => createObjectiveSuggester(providerConfig(''))).toThrow(ConfigurationError);
+    expect(() => createLessonSuggester(providerConfig(''))).toThrow(ConfigurationError);
     expect(createOpenAICompatible).not.toHaveBeenCalled();
     expect(createGoogle).not.toHaveBeenCalled();
   });
 
-  it('drafts with the duration-free prompt, a 15000ms timeout, and the openai-compatible client with structured outputs for gpt-4o-mini', async () => {
+  it('drafts 3 objectives, 3 activities, and 3 resources in one call with the aligned prompt, a 15000ms timeout, and structured outputs for gpt-4o-mini', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout');
     setEnv('AI_API_KEY', 'test-key');
     setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: { objectives: LINES } } as never);
+    vi.mocked(generateObject).mockResolvedValueOnce({ object: SUGGESTIONS } as never);
 
     try {
-      const lines = await createObjectiveSuggester(providerConfig('openai-compatible')).suggest(sample);
+      const suggestions = await createLessonSuggester(providerConfig('openai-compatible')).suggest(sample);
 
-      expect(lines).toEqual(LINES);
+      expect(suggestions).toEqual(SUGGESTIONS);
+      expect(generateObject).toHaveBeenCalledTimes(1);
       expect(createOpenAICompatible).toHaveBeenCalledWith({
         name: 'planroom',
         baseURL: 'http://127.0.0.1:11434/v1',
@@ -155,21 +176,39 @@ describe('createObjectiveSuggester', () => {
         schema?: { safeParse: (value: unknown) => { success: boolean } };
       };
       expect(call.prompt).toBe(PROMPT);
-      expect(call.prompt).not.toMatch(/duration/i);
-      expect(call.prompt).not.toContain('40');
+      expect(call.prompt).toContain('Duration: 40 minutes.');
       expect(call.maxRetries).toBe(0);
-      expect(call.schema?.safeParse({ objectives: LINES }).success).toBe(true);
-      expect(call.schema?.safeParse({ objectives: ['Only one.', 'Only two.'] }).success).toBe(false);
-      expect(call.schema?.safeParse({ objectives: ['a', 'b', 'c', 'd', 'e', 'f'] }).success).toBe(false);
+      expect(call.schema?.safeParse(SUGGESTIONS).success).toBe(true);
+      expect(call.schema?.safeParse({ ...SUGGESTIONS, objectives: ['Only one.', 'Only two.'] }).success).toBe(false);
+      expect(call.schema?.safeParse({ ...SUGGESTIONS, objectives: ['a', 'b', 'c', 'd'] }).success).toBe(false);
+      expect(call.schema?.safeParse({ ...SUGGESTIONS, resources: [] }).success).toBe(false);
+      expect(call.schema?.safeParse({ objectives: SUGGESTIONS.objectives }).success).toBe(false);
     } finally {
       timeout.mockRestore();
     }
   });
 
+  it('omits duration from the prompt when it is not supplied', async () => {
+    setEnv('AI_API_KEY', 'test-key');
+    setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
+    vi.mocked(generateObject).mockResolvedValueOnce({ object: SUGGESTIONS } as never);
+
+    await createLessonSuggester(providerConfig('openai-compatible')).suggest({
+      topic: 'Fractions',
+      subject: 'Maths',
+      grade: 6,
+    });
+
+    const call = vi.mocked(generateObject).mock.calls[0]?.[0] as { prompt?: string };
+    expect(call.prompt).toContain('Topic: Fractions.');
+    expect(call.prompt).not.toContain('Duration');
+    expect(generateObject).toHaveBeenCalledTimes(1);
+  });
+
   it('drafts in no-schema JSON mode for deepseek models to avoid responseFormat warnings and 400 rejections', async () => {
     setEnv('AI_API_KEY', 'test-key');
     setEnv('AI_BASE_URL', 'https://api.deepseek.com/v1');
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: { objectives: LINES } } as never);
+    vi.mocked(generateObject).mockResolvedValueOnce({ object: SUGGESTIONS } as never);
 
     const config = {
       ai: {
@@ -179,9 +218,10 @@ describe('createObjectiveSuggester', () => {
       },
     };
 
-    const lines = await createObjectiveSuggester(config).suggest(sample);
+    const suggestions = await createLessonSuggester(config).suggest(sample);
 
-    expect(lines).toEqual(LINES);
+    expect(suggestions).toEqual(SUGGESTIONS);
+    expect(generateObject).toHaveBeenCalledTimes(1);
     expect(createOpenAICompatible).toHaveBeenCalledWith({
       name: 'planroom',
       baseURL: 'https://api.deepseek.com/v1',
@@ -199,28 +239,28 @@ describe('createObjectiveSuggester', () => {
     expect(call.prompt).toContain('JSON');
   });
 
-  it('falls back to no-schema mode when structured outputs request returns HTTP 400 schema rejection', async () => {
+  it('fails after exactly one call when structured outputs are rejected with HTTP 400 instead of retrying', async () => {
     setEnv('AI_API_KEY', 'test-key');
     setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
     const rejection = Object.assign(new Error('json_schema is not supported'), { statusCode: 400 });
-    vi.mocked(generateObject)
-      .mockRejectedValueOnce(rejection)
-      .mockResolvedValueOnce({ object: { objectives: LINES } } as never);
+    vi.mocked(generateObject).mockRejectedValueOnce(rejection);
 
-    const lines = await createObjectiveSuggester(providerConfig('openai-compatible')).suggest(sample);
+    const error = await createLessonSuggester(providerConfig('openai-compatible'))
+      .suggest(sample)
+      .then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
 
-    expect(lines).toEqual(LINES);
-    expect(generateObject).toHaveBeenCalledTimes(2);
-    const fallbackCall = vi.mocked(generateObject).mock.calls[1]?.[0] as {
-      output?: string;
-    };
-    expect(fallbackCall.output).toBe('no-schema');
+    expect(error).toBeInstanceOf(AiProviderError);
+    expect(error).toMatchObject({ message: DRAFT_FAILURE });
+    expect(generateObject).toHaveBeenCalledTimes(1);
   });
 
   it('calls createGoogle with the key and passes baseURL only when it is set', async () => {
     setEnv('AI_API_KEY', 'gemini-key');
-    vi.mocked(generateObject).mockResolvedValue({ object: { objectives: LINES } } as never);
-    const suggester = createObjectiveSuggester(providerConfig('gemini'));
+    vi.mocked(generateObject).mockResolvedValue({ object: SUGGESTIONS } as never);
+    const suggester = createLessonSuggester(providerConfig('gemini'));
 
     await suggester.suggest(sample);
     expect(createGoogle).toHaveBeenCalledWith({ apiKey: 'gemini-key' });
@@ -237,7 +277,7 @@ describe('createObjectiveSuggester', () => {
   it('turns transport, timeout, and HTTP 4xx into AiProviderError', async () => {
     setEnv('AI_API_KEY', 'test-key');
     setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
-    const suggester = createObjectiveSuggester(providerConfig('openai-compatible'));
+    const suggester = createLessonSuggester(providerConfig('openai-compatible'));
     const timeout = new Error('The operation was aborted due to timeout');
     timeout.name = 'TimeoutError';
     const failures = [
@@ -257,13 +297,70 @@ describe('createObjectiveSuggester', () => {
     }
   });
 
-  it('rejects an object that is not 3 to 5 strings', async () => {
+  it('rejects a result with a blank item or a category that is not exactly 3 lines', async () => {
     setEnv('AI_API_KEY', 'test-key');
     setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: { objectives: ['Only one.', 'Only two.'] } } as never);
+    const invalid = [
+      { ...SUGGESTIONS, objectives: ['Only one.', 'Only two.'] },
+      { ...SUGGESTIONS, objectives: ['a', 'b', 'c', 'd'] },
+      { ...SUGGESTIONS, activities: ['   ', 'Shade halves.', 'Compare pairs.'] },
+      { ...SUGGESTIONS, resources: [] },
+      { ...SUGGESTIONS, resources: ['a', 'b', 'c', 'd'] },
+      { objectives: SUGGESTIONS.objectives, activities: SUGGESTIONS.activities },
+    ];
 
-    const error = await createObjectiveSuggester(providerConfig('openai-compatible'))
-      .suggest(sample)
+    for (const object of invalid) {
+      vi.mocked(generateObject).mockResolvedValueOnce({ object } as never);
+      const error = await createLessonSuggester(providerConfig('openai-compatible'))
+        .suggest(sample)
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+      expect(error).toBeInstanceOf(AiProviderError);
+      expect(error).toMatchObject({ message: DRAFT_FAILURE });
+    }
+  });
+
+  it('drafts 3 more objectives in one call with the exclusion prompt', async () => {
+    setEnv('AI_API_KEY', 'test-key');
+    setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
+    vi.mocked(generateObject).mockResolvedValueOnce({ object: { suggestions: MORE } } as never);
+    const input: SuggestMoreInput = {
+      ...sample,
+      category: 'objectives',
+      exclude: ['Identify fractions.', 'Explain halves.'],
+    };
+
+    const suggestions = await createLessonSuggester(providerConfig('openai-compatible')).suggestMore(input);
+
+    expect(suggestions).toEqual(MORE);
+    expect(generateObject).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(generateObject).mock.calls[0]?.[0] as {
+      prompt?: string;
+      maxRetries?: number;
+      schema?: { safeParse: (value: unknown) => { success: boolean } };
+    };
+    expect(call.prompt).toBe(MORE_PROMPT);
+    expect(call.maxRetries).toBe(0);
+    expect(call.schema?.safeParse({ suggestions: MORE }).success).toBe(true);
+    expect(call.schema?.safeParse({ suggestions: ['Only one.', 'Only two.'] }).success).toBe(false);
+  });
+
+  it('rejects follow-up lines that repeat an excluded line', async () => {
+    setEnv('AI_API_KEY', 'test-key');
+    setEnv('AI_BASE_URL', 'http://127.0.0.1:11434/v1');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: { suggestions: ['Identify fractions.', 'Order unit fractions.', 'Build fraction walls.'] },
+    } as never);
+    const input: SuggestMoreInput = {
+      ...sample,
+      category: 'objectives',
+      exclude: ['Identify fractions.'],
+    };
+
+    const error = await createLessonSuggester(providerConfig('openai-compatible'))
+      .suggestMore(input)
       .then(
         () => undefined,
         (caught: unknown) => caught,
@@ -303,17 +400,18 @@ describe('suggest cap', () => {
         return { count };
       }),
     };
-    const suggester: ObjectiveSuggester = {
+    const suggester: LessonSuggester = {
       suggest: vi.fn(async () => {
         order.push('suggest');
-        return LINES;
+        return SUGGESTIONS;
       }),
+      suggestMore: vi.fn(async () => MORE),
     };
     const controller = controllerFor(counter, suggester);
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const result = await controller.suggest(body, now);
-      expect(result).toEqual({ status: 200, body: { ok: true, data: { objectives: LINES } } });
+      expect(result).toEqual({ status: 200, body: { ok: true, data: SUGGESTIONS } });
     }
 
     const blocked = await controller.suggest(body, now);
@@ -383,6 +481,41 @@ describe('suggest cap', () => {
     expect(error).toBeInstanceOf(ValidationError);
     expect(counter.findOneAndUpdate).not.toHaveBeenCalled();
     expect(suggester.suggest).not.toHaveBeenCalled();
+  });
+
+  it('drafts 3 more lines for one category through suggestMore', async () => {
+    const counter = hourCounter();
+    const suggester = fakeSuggester();
+    const controller = controllerFor(counter, suggester);
+    const body = {
+      topic: 'Fractions',
+      subject: 'MATHS',
+      grade: 6,
+      durationMinutes: 40,
+      category: 'objectives',
+      exclude: ['Identify fractions.'],
+    };
+
+    const result = await controller.suggestMore(body, now);
+
+    expect(result).toEqual({ status: 200, body: { ok: true, data: { suggestions: MORE } } });
+    expect(suggester.suggestMore).toHaveBeenCalledWith(body);
+    expect(suggester.suggest).not.toHaveBeenCalled();
+  });
+
+  it('does not call suggestMore when the follow-up category is invalid', async () => {
+    const counter = hourCounter();
+    const suggester = fakeSuggester();
+    const controller = controllerFor(counter, suggester);
+
+    const error = await controller.suggestMore({ topic: 'Fractions', subject: 'MATHS', grade: 6 }, now).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect(counter.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(suggester.suggestMore).not.toHaveBeenCalled();
   });
 
   it('reports enabled and available without incrementing or calling a provider', () => {

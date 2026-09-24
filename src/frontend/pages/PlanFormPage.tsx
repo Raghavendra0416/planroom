@@ -2,16 +2,24 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import type { LessonPlanRecord, PlanStatus } from '@/backend/models/types';
+import { CategorySuggestions } from '@/frontend/components/plans/CategorySuggestions';
 import { FieldError } from '@/frontend/components/plans/FieldError';
-import { subjectOptions } from '@/frontend/components/plans/labels';
+import { planFailureToast, subjectOptions } from '@/frontend/components/plans/labels';
 import { DocumentSkeleton } from '@/frontend/components/plans/Skeleton';
 import { StatusMark } from '@/frontend/components/plans/StatusMark';
+import { BackButton } from '@/frontend/components/ui/BackButton';
 import { Button } from '@/frontend/components/ui/button';
 import { SelectField } from '@/frontend/components/ui/select';
 import {
-  dismiss,
+  aiIntro,
+  backToPlan,
+  backToPlans,
+  dismissAllActivities,
+  dismissAllObjectives,
+  dismissAllResources,
+  dismissAllSuggestions,
   fieldActivities,
   fieldDuration,
   fieldGrade,
@@ -22,20 +30,27 @@ import {
   fieldTopic,
   forbidden,
   genericError,
-  insertAll,
-  insertOne,
+  insertAllActivities,
+  insertAllObjectives,
+  insertAllResources,
   newPlan,
   notFound,
   retry,
   saveDraft,
   saveFail,
+  saveFailFields,
+  savedToDraft,
   saveSubmit,
   submitFail,
+  submitFailFields,
   suggest,
+  suggestMoreActivities,
+  suggestMoreObjectives,
+  suggestMoreResources,
 } from '@/frontend/copy';
 import { useSession } from '@/frontend/contexts/SessionContext';
 import { useToast } from '@/frontend/contexts/ToastContext';
-import { applyObjectivePreview, useSuggestObjectives } from '@/frontend/hooks/useSuggestObjectives';
+import { applySuggestionPreview, useLessonSuggestions, type SuggestionCategory } from '@/frontend/hooks/useLessonSuggestions';
 import { createPlan, getPlan, savePlan, submitPlan, type PlanWriteBody } from '@/frontend/services/plans';
 import type { SuggestRequest } from '@/frontend/services/ai';
 
@@ -74,16 +89,46 @@ type EditLoad =
   | { kind: 'ready'; plan: LessonPlanRecord };
 
 /**
- * Create and edit use the same form. Suggest objectives previews lines and does not save.
+ * Create and edit use the same form. Lesson suggestions preview lists and do not save.
  * @param props - Form props.
  * @param props.planId - Lesson plan id when editing. Omit it for a new plan.
  * @returns The plan form, or a not-found or forbidden sentence when edit is closed.
  */
 export function PlanFormPage({ planId }: { planId?: string }) {
   if (!planId) {
-    return <PlanEditor heading={newPlan} />;
+    return <NewPlan />;
   }
   return <EditPlan planId={planId} />;
+}
+
+/**
+ * New-plan form for teachers. HOD accounts never see the form and go to the queue.
+ * The skeleton stays up while the session is still loading.
+ * @returns The editor, a skeleton, or nothing while redirecting.
+ */
+function NewPlan() {
+  const { actor, ready } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && actor?.role === 'HOD') {
+      router.replace('/hod');
+    }
+  }, [ready, actor, router]);
+
+  if (!ready) {
+    return (
+      <div aria-busy="true" className="plan-page">
+        <DocumentSkeleton />
+      </div>
+    );
+  }
+
+  if (actor?.role === 'HOD') {
+    return null;
+  }
+
+  return <PlanEditor heading={newPlan} />;
 }
 
 /**
@@ -132,36 +177,45 @@ function EditPlan({ planId }: { planId: string }) {
 
   if (load.kind === 'missing') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{notFound}</p>
-      </main>
+      </div>
     );
   }
 
   if (load.kind === 'forbidden') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{forbidden}</p>
-      </main>
+      </div>
     );
   }
 
   if (load.kind === 'error') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{genericError}</p>
         <Button type="button" onClick={() => setAttempt((current) => current + 1)}>
           {retry}
         </Button>
-      </main>
+      </div>
     );
   }
 
   if (!ready || load.kind === 'loading') {
     return (
-      <main aria-busy="true" className="plan-page">
+      <div aria-busy="true" className="plan-page">
         <DocumentSkeleton />
-      </main>
+      </div>
     );
   }
 
@@ -171,9 +225,12 @@ function EditPlan({ planId }: { planId: string }) {
 
   if (!ownsPlan(load.plan, actor.id)) {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{forbidden}</p>
-      </main>
+      </div>
     );
   }
 
@@ -199,19 +256,22 @@ function EditPlan({ planId }: { planId: string }) {
  */
 function ClosedPlan({ plan }: { plan: LessonPlanRecord }) {
   return (
-    <main className="plan-page">
+    <div className="plan-page">
+      <div className="page-top">
+        <BackButton fallbackHref={`/plans/${plan.id}`} label={backToPlan} />
+      </div>
       {plan.title ? (
         <h1>
           <Link href={`/plans/${plan.id}`}>{plan.title}</Link>
         </h1>
       ) : null}
       <StatusMark status={plan.status} />
-    </main>
+    </div>
   );
 }
 
 /**
- * Savable plan form. Save draft stays quiet. Save and submit is the primary action.
+ * Savable plan form. Save draft stays quiet, except a submitted edit returns to draft. Save and submit is the primary action.
  * @param props - Editor props.
  * @param props.heading - Page heading.
  * @param props.planId - Present when this save should update a plan.
@@ -235,16 +295,50 @@ function PlanEditor({
   const [form, setForm] = useState(initial);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
+  const [moreBatch, setMoreBatch] = useState<Record<SuggestionCategory, number>>({
+    objectives: 0,
+    activities: 0,
+    resources: 0,
+  });
+  const [visible, setVisible] = useState<Record<SuggestionCategory, string[]>>({
+    objectives: [],
+    activities: [],
+    resources: [],
+  });
+  const [categoryGone, setCategoryGone] = useState<Record<SuggestionCategory, boolean>>({
+    objectives: false,
+    activities: false,
+    resources: false,
+  });
   const {
     canSuggest,
+    suggesting,
     notice,
-    preview,
-    suggest: requestObjectives,
-    dismiss: clearPreview,
-  } = useSuggestObjectives();
+    previews,
+    morePending,
+    suggest: requestLesson,
+    suggestMoreFor,
+    consumeCategory,
+    dismissAll,
+  } = useLessonSuggestions();
 
   function update(key: keyof PlanFormState, value: string): void {
     setForm((current) => ({ ...current, [key]: value }));
+    setFields((current) => {
+      const fieldKey = key === 'duration' ? 'durationMinutes' : key;
+      if (current[fieldKey] === undefined) {
+        return current;
+      }
+      const rest = { ...current };
+      delete rest[fieldKey];
+      return rest;
+    });
+  }
+
+  function reportFailure(fallback: string, named: string, resultFields: Record<string, string>): void {
+    setFields(resultFields);
+    show(planFailureToast(fallback, named, resultFields));
+    focusFirstInvalid(resultFields);
   }
 
   async function save(intent: 'draft' | 'submit'): Promise<void> {
@@ -257,8 +351,7 @@ function PlanEditor({
       const created = await createPlan({ ...body, intent: 'submit' });
       setPending(false);
       if (!created.ok) {
-        show(submitFail);
-        setFields(created.fields);
+        reportFailure(submitFail, submitFailFields, created.fields);
         return;
       }
       router.push(`/plans/${created.data.id}`);
@@ -269,8 +362,7 @@ function PlanEditor({
       const created = await createPlan(body);
       setPending(false);
       if (!created.ok) {
-        show(saveFail);
-        setFields(created.fields);
+        reportFailure(saveFail, saveFailFields, created.fields);
         return;
       }
       router.push(`/plans/${created.data.id}/edit`);
@@ -280,21 +372,24 @@ function PlanEditor({
     const saved = await savePlan(planId, body);
     if (!saved.ok) {
       setPending(false);
-      show(intent === 'submit' ? submitFail : saveFail);
-      setFields(saved.fields);
+      reportFailure(intent === 'submit' ? submitFail : saveFail, intent === 'submit' ? submitFailFields : saveFailFields, saved.fields);
       return;
     }
 
     if (intent === 'draft') {
+      const returnedToDraft = status === 'SUBMITTED';
       setPending(false);
+      if (returnedToDraft) {
+        show(savedToDraft);
+        router.push(`/plans/${planId}`);
+      }
       return;
     }
 
     const submitted = await submitPlan(planId);
     setPending(false);
     if (!submitted.ok) {
-      show(submitFail);
-      setFields(submitted.fields);
+      reportFailure(submitFail, submitFailFields, submitted.fields);
       return;
     }
     router.push(`/plans/${planId}`);
@@ -305,8 +400,7 @@ function PlanEditor({
     void save('submit');
   }
 
-  async function onSuggest(): Promise<void> {
-    setFields({});
+  function suggestInput(): SuggestRequest {
     const input: SuggestRequest = { topic: form.topic, subject: form.subject };
     if (form.grade !== '') {
       input.grade = Number(form.grade);
@@ -314,32 +408,83 @@ function PlanEditor({
     if (form.duration !== '') {
       input.durationMinutes = Number(form.duration);
     }
-    const result = await requestObjectives(input);
-    if (!result.ok) {
-      setFields(result.fields);
-    }
+    return input;
   }
 
-  function keepLines(lines: readonly string[]): void {
-    const next = applyObjectivePreview(form.objectives, lines);
-    if (next.error) {
-      const objectivesError = next.error;
-      setFields((current) => ({ ...current, objectives: objectivesError }));
+  async function onSuggest(): Promise<void> {
+    setFields({});
+    const result = await requestLesson(suggestInput());
+    if (!result.ok) {
+      setFields(result.fields);
       return;
     }
-    setForm((current) => ({ ...current, objectives: next.objectives }));
-    setFields((current) => {
-      if (current.objectives === undefined) {
-        return current;
-      }
-      const rest = { ...current };
-      delete rest.objectives;
-      return rest;
+    setMoreBatch({ objectives: 0, activities: 0, resources: 0 });
+    setVisible({ objectives: result.data.objectives, activities: result.data.activities, resources: result.data.resources });
+    setCategoryGone({ objectives: false, activities: false, resources: false });
+  }
+
+  async function onSuggestMore(category: SuggestionCategory): Promise<void> {
+    setFields({});
+    const result = await suggestMoreFor(category, suggestInput());
+    if (!result.ok) {
+      setFields(result.fields);
+      return;
+    }
+    const lines = result.data;
+    setCategoryGone((current) => ({ ...current, [category]: false }));
+    setMoreBatch((current) => ({ ...current, [category]: current[category] + 1 }));
+    setVisible((current) => ({ ...current, [category]: lines }));
+  }
+
+  function markSeen(category: SuggestionCategory, lines: readonly string[]): void {
+    setVisible((current) => {
+      const seen = new Set(lines.map((line) => line.trim().toLowerCase()));
+      return { ...current, [category]: current[category].filter((line) => !seen.has(line.trim().toLowerCase())) };
     });
   }
 
+  function insertSuggestions(category: SuggestionCategory, lines: readonly string[]): boolean {
+    const next = applySuggestionPreview(category, form[category], lines);
+    if (next.error) {
+      const message = next.error;
+      setFields((current) => ({ ...current, [category]: message }));
+      return false;
+    }
+    const value = next.value;
+    setForm((current) => ({ ...current, [category]: value }));
+    setFields((current) => {
+      if (current[category] === undefined) {
+        return current;
+      }
+      const rest = { ...current };
+      delete rest[category];
+      return rest;
+    });
+    return true;
+  }
+
+  function onCategoryConsumed(category: SuggestionCategory): void {
+    setCategoryGone((current) => ({ ...current, [category]: true }));
+    setVisible((current) => ({ ...current, [category]: [] }));
+    consumeCategory(category);
+  }
+
+  function onDismissAllSuggestions(): void {
+    setVisible({ objectives: [], activities: [], resources: [] });
+    setCategoryGone({ objectives: true, activities: true, resources: true });
+    dismissAll();
+  }
+
+  const hasAnySuggestions =
+    visible.objectives.length > 0 || visible.activities.length > 0 || visible.resources.length > 0;
+  const introId = useId();
+  const editorBack = planId ? { fallbackHref: `/plans/${planId}`, label: backToPlan } : { fallbackHref: '/plans', label: backToPlans };
+
   return (
-    <main className="plan-page">
+    <div className="plan-page">
+      <div className="page-top">
+        <BackButton fallbackHref={editorBack.fallbackHref} label={editorBack.label} />
+      </div>
       <h1>{heading}</h1>
       <form className="plan-form" noValidate onSubmit={onSubmit}>
         <TextField
@@ -353,37 +498,40 @@ function PlanEditor({
           <SelectField
             allowEmpty
             caption={fieldSubject}
+            describedBy={fields.subject ? 'plan-subject-error' : undefined}
             id="plan-subject"
             invalid={Boolean(fields.subject)}
             options={subjectOptions()}
             value={form.subject}
             onValueChange={(value) => update('subject', value)}
           />
-          <FieldError message={fields.subject} />
+          <FieldError id="plan-subject-error" message={fields.subject} />
         </div>
         <div className="field">
           <SelectField
             allowEmpty
             caption={fieldGrade}
+            describedBy={fields.grade ? 'plan-grade-error' : undefined}
             id="plan-grade"
             invalid={Boolean(fields.grade)}
             options={GRADE_OPTIONS}
             value={form.grade}
             onValueChange={(value) => update('grade', value)}
           />
-          <FieldError message={fields.grade} />
+          <FieldError id="plan-grade-error" message={fields.grade} />
         </div>
         <div className="field">
           <SelectField
             allowEmpty
             caption={fieldDuration}
+            describedBy={fields.durationMinutes ? 'plan-duration-error' : undefined}
             id="plan-duration"
             invalid={Boolean(fields.durationMinutes)}
             options={DURATION_OPTIONS}
             value={form.duration}
             onValueChange={(value) => update('duration', value)}
           />
-          <FieldError message={fields.durationMinutes} />
+          <FieldError id="plan-duration-error" message={fields.durationMinutes} />
         </div>
         <TextField
           error={fields.topic}
@@ -392,6 +540,30 @@ function PlanEditor({
           value={form.topic}
           onChange={(value) => update('topic', value)}
         />
+        <div className="suggest-line">
+          <Button
+            ariaLabel={!canSuggest && notice ? `${suggest}. ${notice}` : undefined}
+            disabled={!canSuggest}
+            type="button"
+            variant="quiet"
+            onClick={() => void onSuggest()}
+          >
+            {suggesting ? `${suggest}…` : suggest}
+          </Button>
+          {notice ? (
+            <p aria-live="polite" role="status">
+              {notice}
+            </p>
+          ) : null}
+        </div>
+        {hasAnySuggestions ? (
+          <section aria-labelledby={introId} className="suggest-line">
+            <p id={introId}>{aiIntro}</p>
+            <Button type="button" variant="quiet" onClick={onDismissAllSuggestions}>
+              {dismissAllSuggestions}
+            </Button>
+          </section>
+        ) : null}
         <TextField
           multiline
           error={fields.objectives}
@@ -400,34 +572,20 @@ function PlanEditor({
           value={form.objectives}
           onChange={(value) => update('objectives', value)}
         />
-        <div className="suggest-line">
-          <Button disabled={!canSuggest} type="button" variant="quiet" onClick={() => void onSuggest()}>
-            {suggest}
-          </Button>
-          {notice ? <p>{notice}</p> : null}
-        </div>
-        {preview ? (
-          <>
-            <ul className="objective-preview">
-              {preview.map((line, index) => (
-                <li key={`${index}-${line}`}>
-                  <span>{line}</span>
-                  <Button type="button" variant="quiet" onClick={() => keepLines([line])}>
-                    {insertOne}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <div className="objective-actions">
-              <Button type="button" variant="quiet" onClick={() => keepLines(preview)}>
-                {insertAll}
-              </Button>
-              <Button type="button" variant="quiet" onClick={clearPreview}>
-                {dismiss}
-              </Button>
-            </div>
-          </>
-        ) : null}
+        <CategoryBlock
+          category="objectives"
+          lines={visible.objectives}
+          batch={moreBatch.objectives}
+          hidden={categoryGone.objectives}
+          moreDisabled={morePending.objectives || suggesting}
+          insertAllLabel={insertAllObjectives}
+          dismissAllLabel={dismissAllObjectives}
+          suggestMoreLabel={suggestMoreObjectives}
+          onInsert={insertSuggestions}
+          onSeen={markSeen}
+          onConsumed={onCategoryConsumed}
+          onSuggestMore={(category) => void onSuggestMore(category)}
+        />
         <TextField
           multiline
           error={fields.activities}
@@ -436,6 +594,20 @@ function PlanEditor({
           value={form.activities}
           onChange={(value) => update('activities', value)}
         />
+        <CategoryBlock
+          category="activities"
+          lines={visible.activities}
+          batch={moreBatch.activities}
+          hidden={categoryGone.activities}
+          moreDisabled={morePending.activities || suggesting}
+          insertAllLabel={insertAllActivities}
+          dismissAllLabel={dismissAllActivities}
+          suggestMoreLabel={suggestMoreActivities}
+          onInsert={insertSuggestions}
+          onSeen={markSeen}
+          onConsumed={onCategoryConsumed}
+          onSuggestMore={(category) => void onSuggestMore(category)}
+        />
         <TextField
           multiline
           error={fields.resources}
@@ -443,6 +615,20 @@ function PlanEditor({
           label={fieldResources}
           value={form.resources}
           onChange={(value) => update('resources', value)}
+        />
+        <CategoryBlock
+          category="resources"
+          lines={visible.resources}
+          batch={moreBatch.resources}
+          hidden={categoryGone.resources}
+          moreDisabled={morePending.resources || suggesting}
+          insertAllLabel={insertAllResources}
+          dismissAllLabel={dismissAllResources}
+          suggestMoreLabel={suggestMoreResources}
+          onInsert={insertSuggestions}
+          onSeen={markSeen}
+          onConsumed={onCategoryConsumed}
+          onSuggestMore={(category) => void onSuggestMore(category)}
         />
         {fields.form ? <FieldError message={fields.form} /> : null}
         <div className="plan-actions">
@@ -454,7 +640,7 @@ function PlanEditor({
           </Button>
         </div>
       </form>
-    </main>
+    </div>
   );
 }
 
@@ -462,6 +648,93 @@ const GRADE_OPTIONS = [6, 7, 8, 9, 10, 11, 12].map((grade) => ({
   value: String(grade),
   label: String(grade),
 }));
+
+/**
+ * Backend field key to the id of its control. `durationMinutes` is the Duration select.
+ */
+const PLAN_FIELD_IDS: Record<string, string> = {
+  title: 'plan-title',
+  subject: 'plan-subject',
+  grade: 'plan-grade',
+  durationMinutes: 'plan-duration',
+  topic: 'plan-topic',
+  objectives: 'plan-objectives',
+  activities: 'plan-activities',
+  resources: 'plan-resources',
+};
+
+const FIELD_ORDER = ['title', 'subject', 'grade', 'durationMinutes', 'topic', 'objectives', 'activities', 'resources'];
+
+/**
+ * Moves focus to the first failing control so keyboard and screen-reader users
+ * land on the field the toast names. Radix select triggers focus like inputs.
+ * @param resultFields - Field messages from the API failure.
+ */
+function focusFirstInvalid(resultFields: Record<string, string>): void {
+  for (const key of FIELD_ORDER) {
+    if (resultFields[key] === undefined || PLAN_FIELD_IDS[key] === undefined) {
+      continue;
+    }
+    document.getElementById(PLAN_FIELD_IDS[key])?.focus();
+    return;
+  }
+}
+
+const CATEGORIES: SuggestionCategory[] = ['objectives', 'activities', 'resources'];
+
+/**
+ * One field's suggestion block rendered directly beneath that field.
+ * @param props - Category lines plus the editor callbacks that own them.
+ * @returns The category list, or nothing when it has no visible rows.
+ */
+function CategoryBlock({
+  category,
+  lines,
+  batch,
+  hidden,
+  moreDisabled,
+  insertAllLabel,
+  dismissAllLabel,
+  suggestMoreLabel,
+  onInsert,
+  onSeen,
+  onConsumed,
+  onSuggestMore,
+}: {
+  category: SuggestionCategory;
+  lines: string[];
+  batch: number;
+  hidden: boolean;
+  moreDisabled: boolean;
+  insertAllLabel: string;
+  dismissAllLabel: string;
+  suggestMoreLabel: string;
+  onInsert: (category: SuggestionCategory, lines: readonly string[]) => boolean;
+  onSeen: (category: SuggestionCategory, lines: readonly string[]) => void;
+  onConsumed: (category: SuggestionCategory) => void;
+  onSuggestMore: (category: SuggestionCategory) => void;
+}): ReactNode {
+  if (hidden || lines.length === 0) {
+    return null;
+  }
+  return (
+    <div className="field-suggestions">
+      <CategorySuggestions
+        category={category}
+        lines={lines}
+        batch={batch}
+        moreDisabled={moreDisabled}
+        onInsert={onInsert}
+        onSeen={onSeen}
+        onConsumed={() => onConsumed(category)}
+        insertAllLabel={insertAllLabel}
+        dismissAllLabel={dismissAllLabel}
+        suggestMoreLabel={suggestMoreLabel}
+        onSuggestMore={() => onSuggestMore(category)}
+      />
+    </div>
+  );
+}
 
 /**
  * Text or multiline field with its error under it.
@@ -491,16 +764,31 @@ function TextField({
 }): ReactNode {
   const invalid = error ? true : undefined;
   const className = error ? 'has-error' : undefined;
+  const errorId = error ? `${id}-error` : undefined;
 
   return (
     <label htmlFor={id}>
       {label}
       {multiline ? (
-        <textarea aria-invalid={invalid} className={className} id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+        <textarea
+          aria-describedby={errorId}
+          aria-invalid={invalid}
+          className={className}
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
       ) : (
-        <input aria-invalid={invalid} className={className} id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+        <input
+          aria-describedby={errorId}
+          aria-invalid={invalid}
+          className={className}
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
       )}
-      <FieldError message={error} />
+      <FieldError id={errorId} message={error} />
     </label>
   );
 }
@@ -579,8 +867,8 @@ function ownsPlan(plan: LessonPlanRecord, actorId: string): boolean {
 /**
  * Reports whether the owner may save this plan.
  * @param plan - Loaded plan.
- * @returns True for the owner's draft or sent-back plan.
+ * @returns True for the owner's draft, submitted, or sent-back plan.
  */
 function canEdit(plan: LessonPlanRecord): boolean {
-  return plan.status === 'DRAFT' || plan.status === 'CHANGES_REQUESTED';
+  return plan.status === 'DRAFT' || plan.status === 'SUBMITTED' || plan.status === 'CHANGES_REQUESTED';
 }

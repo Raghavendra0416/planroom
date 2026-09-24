@@ -1,7 +1,8 @@
 'use client';
 
+import { BackButton } from '@/frontend/components/ui/BackButton';
 import { Button } from '@/frontend/components/ui/button';
-import { genericError, retry } from '@/frontend/copy';
+import { backToHome, genericError, retry } from '@/frontend/copy';
 
 /**
  * Recoverable page error with the shared failure sentence and retry button.
@@ -11,11 +12,14 @@ import { genericError, retry } from '@/frontend/copy';
  */
 export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
-    <main className="home">
+    <div className="home">
+      <div className="page-top">
+        <BackButton fallbackHref="/" label={backToHome} />
+      </div>
       <p>{genericError}</p>
       <Button type="button" onClick={() => reset()}>
         {retry}
       </Button>
-    </main>
+    </div>
   );
 }

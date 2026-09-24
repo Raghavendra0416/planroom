@@ -1,5 +1,53 @@
 # Planroom
 
+https://planroom.site/
+
+https://github.com/Raghavendra0416/planroom
+
+## Demo logins
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Teacher | teacher@planroom.demo | planroom |
+| Head of department | hod@planroom.demo | planroom |
+
+The password is `planroom` (`DEMO_PASSWORD` in `.env.example`). Registration creates a teacher only. The head of department account comes from the seed. The login page shows the two emails and does not print the password.
+
+## Why
+
+Departments pass plans around in files and chat threads. Comments get lost and no one knows the current status. Planroom keeps the plan, the status, and the notes together, so a teacher knows what to fix and the head knows what to read.
+
+## Architecture
+
+```text
+browser
+-> src/app pages and proxy.ts
+-> src/frontend/pages screens with components, hooks, services
+-> src/app/api routes
+-> src/backend/routes controllers and middleware
+-> src/backend/managers rules
+-> MongoDB with users, lesson_plans, review_notes, suggest_hours
+-> src/backend/services/ai drafts, preview only, save stays separate
+```
+
+`src/app` stays thin. Screens live in `src/frontend`. Rules live in `src/backend`. There is no `src/common`.
+
+## Evaluation criteria
+
+| Requirement | Files |
+| --- | --- |
+| Next.js 16, App Router, React, TypeScript | src/app/layout.tsx, src/app/page.tsx, src/app/login/page.tsx, src/app/register/page.tsx, src/app/plans/page.tsx, src/app/plans/new/page.tsx, src/app/plans/[id]/page.tsx, src/app/plans/[id]/edit/page.tsx, src/app/hod/page.tsx, src/proxy.ts, src/app/icon.svg, tsconfig.json, next.config.ts |
+| Screens and components | src/frontend/pages/HomePage.tsx, src/frontend/pages/LoginPage.tsx, src/frontend/pages/RegisterPage.tsx, src/frontend/pages/PlanListPage.tsx, src/frontend/pages/PlanDetailPage.tsx, src/frontend/pages/PlanFormPage.tsx, src/frontend/pages/HodQueuePage.tsx, src/frontend/components/plans, src/frontend/components/layout, src/frontend/components/ui |
+| Tailwind with shadcn and Radix primitives | src/app/globals.css, src/frontend/assets/fonts.css, postcss.config.mjs, src/frontend/components/ui/button.tsx, src/frontend/components/ui/dialog.tsx, src/frontend/components/ui/select.tsx |
+| MongoDB with Mongoose | src/backend/server.ts, src/backend/models/user.model.ts, src/backend/models/lesson-plan.model.ts, src/backend/models/review-note.model.ts, src/backend/models/suggest-hour.model.ts, src/backend/seed.ts |
+| Auth and roles | src/backend/managers/auth.manager.ts, src/backend/routes/auth/auth.controller.ts, src/backend/routes/auth/index.ts, src/backend/services/session.ts, src/backend/services/password.ts, src/backend/validation/auth.ts, src/app/api/auth/[...all]/route.ts, src/frontend/contexts/SessionContext.tsx, src/backend/routes/plans/plan.middleware.ts, src/backend/routes/reviews/review.middleware.ts, src/backend/routes/ai/ai.middleware.ts |
+| Plans and review loop | src/backend/managers/plan.manager.ts, src/backend/managers/review.manager.ts, src/backend/routes/plans/plan.controller.ts, src/backend/routes/reviews/review.controller.ts, src/app/api/plans/route.ts, src/app/api/plans/[id]/route.ts, src/app/api/plans/[id]/submit/route.ts, src/app/api/plans/[id]/review/route.ts |
+| AI lesson drafts | src/backend/services/ai/ai.factory.ts, src/backend/services/ai/lesson-suggester.ts, src/backend/services/ai/openai-compatible.suggester.ts, src/backend/services/ai/gemini.suggester.ts, src/backend/services/ai/suggest-cap.ts, src/backend/routes/ai/ai.controller.ts, src/app/api/ai/suggestions/route.ts, src/frontend/hooks/useLessonSuggestions.ts, src/frontend/services/ai.ts, src/frontend/components/plans/LessonSuggestionPreview.tsx |
+| Tests | tests/unit/backend/managers/plan.manager.test.ts, tests/unit/backend/managers/status-machine.test.ts, tests/unit/backend/managers/auth.manager.test.ts, tests/unit/backend/services/ai.factory.test.ts, tests/unit/backend/utils/load-config.test.ts, tests/unit/backend/models/schemas.test.ts, tests/e2e/review-loop.spec.ts, tests/e2e/approval-and-reopen.spec.ts, tests/e2e/ai-suggestions.spec.ts, vitest.config.ts, playwright.config.ts |
+| Deploy and CI | .github/workflows/ci.yml, config/production.json, config/default.json, config/localhost.json, src/backend/utils/load-config.ts, docs/DEPLOY.md |
+| Repo, live URL, footer | https://github.com/Raghavendra0416/planroom, https://planroom.site/, config/production.json, src/frontend/components/layout/Footer.tsx, src/app/layout.tsx |
+| Security note | README security note below, src/backend/utils/errors.ts, src/backend/utils/map-error.ts, src/proxy.ts |
+
 ## Problem
 
 Teachers write a lesson plan. The head of department reads it, sends it back, or signs it off. Planroom is that review board for one department.
@@ -15,11 +63,11 @@ Registration creates a teacher only. The head of department account comes from t
 ## Status
 
 ```text
-Draft -- submit --> In review
-In review -- approve --> Approved
-In review -- send back --> Sent back
-Sent back -- submit --> In review
-Approved -- reopen --> Sent back
+Draft -> In review (submit)
+In review -> Approved (approve)
+In review -> Sent back (send back)
+Sent back -> In review (submit)
+Approved -> Sent back (reopen)
 ```
 
 Those are the five legal edges. Any other jump is refused and writes no note.
@@ -61,7 +109,7 @@ A draft save may omit fields. A present value still has to fit: title 3 to 80 ch
 `suggest_hours`
 
 - `hour` is `YYYY-MM-DDTHH` in server-local time and is unique.
-- `count` is an integer. It counts Suggest objectives calls for that hour.
+- `count` is an integer. It counts lesson suggestion calls for that hour.
 
 ## Config files
 
@@ -69,7 +117,7 @@ A draft save may omit fields. A present value still has to fit: title 3 to 80 ch
 
 JSON may name environment variables and holds no secret values. `AI_API_KEY` and `AI_BASE_URL` are never written into JSON.
 
-Localhost, and the default, use the `openai-compatible` provider and model `gpt-4o-mini`. Production uses `gemini` and `gemini-2.0-flash` unless `AI_PROVIDER` or `AI_MODEL` overrides them. `auth.sessionDays` is 14. `ai.enabled` defaults to true. `ai.timeoutMs` is 15000. `security.maxSuggestPerHour` is 10. The database name is `planroom`.
+Localhost, and the default, use the `openai-compatible` provider and model `gpt-4o-mini`. Production uses `gemini` and `gemini-2.0-flash` unless `AI_PROVIDER` or `AI_MODEL` overrides them. `auth.sessionDays` is 14. `ai.enabled` defaults to true. `ai.timeoutMs` is 15000. `security.maxSuggestPerHour` is 10. The database name is `planroom`. Production `app.url` is `https://planroom.site/`.
 
 `.env.example` lists `APP_ENV`, `MONGODB_URI`, `AUTH_SECRET`, `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_PROVIDER`, and `DEMO_PASSWORD`. Copy it to `.env.local` and fill the secrets there.
 
@@ -85,15 +133,17 @@ A successful register or sign-in sets an HTTP-only `planroom_session` cookie. Th
 
 The demo password is `planroom` (`DEMO_PASSWORD`). The login page shows `teacher@planroom.demo` and `hod@planroom.demo` and does not print the password. The seeded teacher is Meera. The seeded head of department is Arun.
 
-## AI failure mode
+## AI lesson suggestions
 
-Suggest objectives drafts 3 to 5 lines into a preview. It does not write the plan and it does not change status. The teacher inserts or dismisses the preview, then saves separately. The prompt does not mention duration.
+Draft lesson with AI makes exactly one provider call and returns 3 objectives, 3 activities, and 3 resources. The prompt includes subject, grade, topic, and duration when sent, and asks for measurable objectives, sequenced activities that teach them, and practical resources for those activities. Each category block sits directly below its field. Suggestions stay local until save; generating or inserting never writes the plan or changes its status.
+
+Each row has one-click Insert and Dismiss. Each category has its own Insert all, Dismiss all, and Suggest more actions, plus a global Dismiss all suggestions control. Suggest more sends every line already shown, inserted, or dismissed for that category and returns 3 novel lines; a repeated line fails the call. A successful insert or dismiss animates that row away; a consumed category disappears. A failed over-limit insert leaves the row visible and shows that field's length error (objectives 2000, activities 4000, resources 2000).
 
 When suggestions are turned off, the form says "Suggestions are off. You can still save this plan." When `AI_API_KEY` is missing or blank, it says "Suggestions will be back soon. You can still save this plan." Neither case calls a provider or takes a cap slot. Invalid topic, subject, or grade does not take a cap slot either.
 
 The server increments `suggest_hours` before the provider call. The 11th request in that server-local hour says "No suggestions left this hour. Try again later." and does not call the provider. A provider failure still uses the slot it already took.
 
-When the provider cannot be reached, times out after 15 seconds, or rejects the call, the form says "Could not draft objectives. Write them yourself." The objectives field stays as it was. A preview that would push the field past 2000 characters is not inserted, and the field shows its length error.
+When the provider cannot be reached, times out after 15 seconds, or rejects the call, the form says "Could not draft the lesson plan. Write it yourself." The fields stay as they were. Reduced motion removes consumed rows immediately with no animation.
 
 ## How to run
 
@@ -114,12 +164,12 @@ Click path: sign in as the teacher and open the in-review plan read-only. The se
 
 `npm test` runs the unit tests with Vitest. They use `mongodb-memory-server` and do not need a running MongoDB.
 
-`npm run test:e2e` runs `tests/e2e/review-loop.spec.ts`. It signs in as `teacher@planroom.demo`, submits a new complete plan, signs out, signs in as `hod@planroom.demo`, sends that plan back with a note, and checks that the page shows Sent back and the note. Playwright starts `npm run dev` when `http://127.0.0.1:3000` is free, and reuses a server that is already running. Seed the database before the first run. If the Chromium browser is missing, install it once with `npx playwright install chromium`. GitHub Actions runs lint, `tsc --noEmit`, and `npm test` with `APP_ENV=localhost`. It does not run Playwright. A push to `main` that passes those checks also deploys to Vercel. `DEPLOY.md` says where the deploy secrets go.
+`npm run test:e2e` runs `tests/e2e/review-loop.spec.ts`. It signs in as `teacher@planroom.demo`, submits a new complete plan, signs out, signs in as `hod@planroom.demo`, sends that plan back with a note, and checks that the page shows Sent back and the note. Playwright starts `npm run dev` when `http://127.0.0.1:3000` is free, and reuses a server that is already running. Seed the database before the first run. If the Chromium browser is missing, install it once with `npx playwright install chromium`. GitHub Actions runs lint, `tsc --noEmit`, and `npm test` with `APP_ENV=localhost`. It does not run Playwright. A push to `main` that passes those checks also deploys to Vercel. `docs/DEPLOY.md` says where the deploy secrets go.
 
 ## Live URL
 
-Not deployed yet.
+https://planroom.site/
 
 ## Security note
 
-The session is checked on every write. Roles live in the managers. Remove is a soft delete. There is no student PII. Secrets stay in the environment. Planroom is one department. There is no tenancy. Atlas free tier is an accepted limit. Suggest objectives costs money if it is abused. Twenty schools would break Planroom because every head of department would see every plan.
+The session is checked on every write. Roles live in the managers. Remove is a soft delete. There is no student PII. Secrets stay in the environment. Planroom is one department. There is no tenancy. Atlas free tier is an accepted limit. Lesson suggestions cost money if abused. Twenty schools would break Planroom because every head of department would see every plan.

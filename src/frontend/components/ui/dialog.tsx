@@ -30,7 +30,7 @@ export function Dialog({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="sheet-overlay" />
-        <DialogPrimitive.Content aria-describedby={undefined} aria-labelledby={titleId} className="sheet-dialog">
+        <DialogPrimitive.Content aria-label={title} className="sheet-dialog">
           <DialogPrimitive.Title className="sheet-title" id={titleId}>
             {title}
           </DialogPrimitive.Title>

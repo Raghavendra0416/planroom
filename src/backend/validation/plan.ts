@@ -145,12 +145,12 @@ function planValidationError(error: z.ZodError): ValidationError {
     const key = issue.path[0];
     const name = typeof key === 'string' ? key : 'form';
     if (fields[name] === undefined) {
-      fields[name] = issue.message;
+      fields[name] = name === 'form' ? 'Check the highlighted fields.' : issue.message;
     }
   }
 
   if (Object.keys(fields).length === 0) {
-    return new ValidationError({ form: 'Invalid' });
+    return new ValidationError({ form: 'Check the highlighted fields.' });
   }
 
   return new ValidationError(fields);

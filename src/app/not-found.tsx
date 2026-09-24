@@ -1,4 +1,7 @@
-import { notFound as notFoundMessage } from '@/frontend/copy';
+'use client';
+
+import { BackButton } from '@/frontend/components/ui/BackButton';
+import { backToHome, notFound as notFoundMessage } from '@/frontend/copy';
 
 /**
  * Missing-page message for unknown URLs.
@@ -6,8 +9,11 @@ import { notFound as notFoundMessage } from '@/frontend/copy';
  */
 export default function NotFound() {
   return (
-    <main className="home">
+    <div className="home">
+      <div className="page-top">
+        <BackButton fallbackHref="/" label={backToHome} />
+      </div>
       <p>{notFoundMessage}</p>
-    </main>
+    </div>
   );
 }

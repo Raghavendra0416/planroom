@@ -14,7 +14,7 @@ export interface SuggestFailure {
 export type SuggestResult<T> = { ok: true; data: T } | SuggestFailure;
 
 /**
- * Fields sent to Suggest objectives. Grade and duration are omitted until the form has them.
+ * Fields sent to draft a lesson. Grade and duration are omitted until the form has them.
  */
 export interface SuggestRequest {
   topic: string;
@@ -23,8 +23,19 @@ export interface SuggestRequest {
   durationMinutes?: number;
 }
 
+export type SuggestCategory = 'objectives' | 'activities' | 'resources';
+
 /**
- * Whether the Suggest objectives button can be pressed.
+ * Fields sent for 3 more lines in one category. `exclude` holds every line
+ * already shown, inserted, or dismissed so the model does not repeat them.
+ */
+export interface SuggestMoreRequest extends SuggestRequest {
+  category: SuggestCategory;
+  exclude: string[];
+}
+
+/**
+ * Whether the lesson suggestion button can be pressed.
  */
 export interface SuggestionAvailability {
   enabled: boolean;
@@ -32,11 +43,20 @@ export interface SuggestionAvailability {
 }
 
 /**
+ * Aligned suggestion lists returned by one AI call.
+ */
+export interface LessonSuggestions {
+  objectives: string[];
+  activities: string[];
+  resources: string[];
+}
+
+/**
  * Reads whether suggestions are switched on and whether a key is configured.
- * @returns `enabled` and `available`. This call does not ask for objectives.
+ * @returns `enabled` and `available`. This call does not ask for suggestions.
  */
 export async function getSuggestionAvailability(): Promise<SuggestResult<SuggestionAvailability>> {
-  const result = await request<{ enabled?: unknown; available?: unknown }>('/api/ai/objectives');
+  const result = await request<{ enabled?: unknown; available?: unknown }>('/api/ai/suggestions');
   if (!result.ok) {
     return result;
   }
@@ -47,22 +67,57 @@ export async function getSuggestionAvailability(): Promise<SuggestResult<Suggest
 }
 
 /**
- * Asks for 3 to 5 objective lines. The plan is not saved by this call.
+ * Asks once for 3 objectives, 3 activities, and 3 resources. The plan is not saved by this call.
  * @param input - Topic, subject, grade, and optional duration.
- * @returns The preview lines, or a failure. A provider failure leaves the button usable.
+ * @returns The aligned suggestion lists, or a failure. A provider failure leaves the button usable.
  */
-export async function suggestObjectives(input: SuggestRequest): Promise<SuggestResult<string[]>> {
-  const result = await request<{ objectives?: unknown }>('/api/ai/objectives', {
+export async function suggestLesson(
+  input: SuggestRequest,
+): Promise<SuggestResult<LessonSuggestions>> {
+  const result = await request<{ objectives?: unknown; activities?: unknown; resources?: unknown }>(
+    '/api/ai/suggestions',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+  if (!result.ok) {
+    return result;
+  }
+  if (
+    !isSuggestionList(result.data.objectives, 3) ||
+    !isSuggestionList(result.data.activities, 3) ||
+    !isSuggestionList(result.data.resources, 3)
+  ) {
+    return failure(0, undefined);
+  }
+  return {
+    ok: true,
+    data: {
+      objectives: result.data.objectives as string[],
+      activities: result.data.activities as string[],
+      resources: result.data.resources as string[],
+    },
+  };
+}
+
+/**
+ * Asks once for 3 more lines in one category. The plan is not saved by this call.
+ * @param input - Class context, the category, and lines the model must not repeat.
+ * @returns The 3 novel lines, or a failure.
+ */
+export async function suggestMore(input: SuggestMoreRequest): Promise<SuggestResult<string[]>> {
+  const result = await request<{ suggestions?: unknown }>('/api/ai/suggestions/more', {
     method: 'POST',
     body: JSON.stringify(input),
   });
   if (!result.ok) {
     return result;
   }
-  if (!isObjectiveList(result.data.objectives)) {
+  if (!isSuggestionList(result.data.suggestions, 3)) {
     return failure(0, undefined);
   }
-  return { ok: true, data: result.data.objectives };
+  return { ok: true, data: result.data.suggestions as string[] };
 }
 
 /**
@@ -149,12 +204,17 @@ function isOk(body: unknown): body is { ok: true; data: unknown } {
 }
 
 /**
- * Checks a preview of 3 to 5 strings.
- * @param value - Candidate `objectives` payload.
- * @returns True when every entry is a string and the length is 3 to 5.
+ * Checks one suggestion category of exactly 3 lines.
+ * @param value - Candidate category payload.
+ * @param count - Required item count.
+ * @returns True when every entry is a non-blank string and the count is exactly 3.
  */
-function isObjectiveList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.length >= 3 && value.length <= 5 && value.every((line) => typeof line === 'string');
+function isSuggestionList(value: unknown, count: number): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length === count &&
+    value.every((line) => typeof line === 'string' && line.trim() !== '')
+  );
 }
 
 /**

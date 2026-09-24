@@ -66,7 +66,7 @@ export class PlanController {
   }
 
   /**
-   * Saves a plan from the JSON body without changing status.
+   * Saves a plan from the JSON body. A submitted plan returns to draft.
    * @param actor - Signed-in owner.
    * @param planId - Lesson plan id from the route.
    * @param body - Untrusted JSON body.

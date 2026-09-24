@@ -173,24 +173,83 @@ describe('plan manager', () => {
     expect(await reviewNoteModel().countDocuments({ planId: created.id, kind: 'APPROVED' })).toBe(0);
   });
 
-  it('rejects a teacher edit of a submitted plan and does not store the new title', async () => {
+  it('returns a submitted plan to draft when the owner edits it and writes no note', async () => {
+    const teacher = actor('TEACHER', 'Ada');
+    const { plans } = managers();
+    const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
+    const before = await reviewNoteModel().countDocuments({ planId: created.id });
+
+    const saved = await plans.save(teacher, created.id, { title: 'A different title' });
+
+    expect(saved.status).toBe('DRAFT');
+    expect(saved.title).toBe('A different title');
+    expect(saved.objectives).toBeUndefined();
+    const stored = await lessonPlanModel().findById(created.id).lean();
+    expect(stored?.status).toBe('DRAFT');
+    expect(stored?.title).toBe('A different title');
+    expect(await reviewNoteModel().countDocuments({ planId: created.id })).toBe(before);
+  });
+
+  it('rejects a submitted edit with a bad field and keeps the plan submitted', async () => {
     const teacher = actor('TEACHER', 'Ada');
     const { plans } = managers();
     const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
 
-    await expect(plans.save(teacher, created.id, { title: 'A different title' })).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
+    const caught = await plans.save(teacher, created.id, { title: 'A' }).catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ValidationError);
+    const stored = await lessonPlanModel().findById(created.id).lean();
+    expect(stored?.status).toBe('SUBMITTED');
+    expect(stored?.title).toBe(completePlan.title);
+  });
+
+  it('rejects a submitted edit from a non-owner and an HOD', async () => {
+    const teacher = actor('TEACHER', 'Ada');
+    const other = actor('TEACHER', 'Bea');
+    const hod = actor('HOD', 'Hale');
+    const { plans } = managers();
+    const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
+
+    await expect(plans.save(other, created.id, { title: 'Bea rewrite' })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(plans.save(hod, created.id, { title: 'HOD rewrite' })).rejects.toBeInstanceOf(ForbiddenError);
 
     const stored = await lessonPlanModel().findById(created.id).lean();
     expect(stored?.status).toBe('SUBMITTED');
     expect(stored?.title).toBe(completePlan.title);
   });
 
-  it('rejects an HOD approving their own plan and leaves it submitted with no approval note', async () => {
+  it('rejects an approved edit from the owner and keeps the plan approved', async () => {
+    const teacher = actor('TEACHER', 'Ada');
     const hod = actor('HOD', 'Hale');
     const { plans, reviews } = managers();
-    const created = await plans.create(hod, { ...completePlan, intent: 'submit' });
+    const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
+    await reviews.approve(hod, created.id);
+
+    await expect(plans.save(teacher, created.id, { title: 'After approval' })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+
+    const stored = await lessonPlanModel().findById(created.id).lean();
+    expect(stored?.status).toBe('APPROVED');
+    expect(stored?.title).toBe(completePlan.title);
+  });
+
+  it('rejects an HOD create and stores no plan', async () => {
+    const hod = actor('HOD', 'Hale');
+    const { plans } = managers();
+
+    const caught = await plans.create(hod, { title: 'HOD draft' }).catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ForbiddenError);
+    expect(await lessonPlanModel().countDocuments()).toBe(0);
+  });
+
+  it('rejects an HOD approving a teacher plan authored by the HOD id and leaves it submitted', async () => {
+    const teacher = actor('TEACHER', 'Tess');
+    const hod = actor('HOD', 'Hale');
+    const { plans, reviews } = managers();
+    const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
+    await lessonPlanModel().updateOne({ _id: created.id }, { $set: { authorId: hod.id } });
 
     await expect(reviews.approve(hod, created.id)).rejects.toBeInstanceOf(ForbiddenError);
 
@@ -514,6 +573,8 @@ describe('plan manager', () => {
     expect(note.kind).toBe('COMMENT');
     expect(note.body).toBe('Looks fine.');
     expect(note.authorId).toBe(hod.id);
+    expect(note.authorName).toBe('Hale');
+    expect(note.authorRole).toBe('HOD');
     expect(note.planId).toBe(created.id);
     expect((await plans.get(teacher, created.id)).status).toBe('DRAFT');
     await expect(reviews.comment(teacher, created.id, 'Hello')).rejects.toBeInstanceOf(ForbiddenError);
@@ -557,6 +618,7 @@ describe('plan manager', () => {
     const notes = await reviews.listNotes(teacher, created.id);
 
     expect(notes.map((note) => note.body)).toEqual(['First note', 'Second note']);
+    expect(notes.every((note) => note.kind === 'COMMENT')).toBe(true);
     await expect(reviews.listNotes(other, created.id)).rejects.toThrow('You cannot open this plan.');
     await plans.remove(teacher, created.id);
     await expect(reviews.listNotes(hod, created.id)).rejects.toThrow('That page is not here.');

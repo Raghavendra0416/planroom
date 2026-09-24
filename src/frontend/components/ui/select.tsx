@@ -25,6 +25,7 @@ export interface SelectOption {
  * @param props.invalid - Draws the oxide border when the field failed.
  * @param props.allowEmpty - Adds an option that clears the value. Its text is `emptyLabel` or the caption.
  * @param props.emptyLabel - Text of the clearing option.
+ * @param props.describedBy - Id of the error message, so the trigger points at it.
  * @returns The caption, trigger, and menu.
  */
 export function SelectField({
@@ -37,6 +38,7 @@ export function SelectField({
   invalid = false,
   allowEmpty = false,
   emptyLabel,
+  describedBy,
 }: {
   id: string;
   caption?: string;
@@ -47,6 +49,7 @@ export function SelectField({
   invalid?: boolean;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  describedBy?: string;
 }): ReactNode {
   const selected = options.find((option) => option.value === value);
   const captionId = caption ? `${id}-label` : undefined;
@@ -61,6 +64,7 @@ export function SelectField({
       ) : null}
       <Select.Root value={selectValue} onValueChange={(next) => onValueChange(next === EMPTY ? '' : next)}>
         <Select.Trigger
+          aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
           aria-labelledby={captionId}
           className={invalid ? 'select-trigger has-error' : 'select-trigger'}

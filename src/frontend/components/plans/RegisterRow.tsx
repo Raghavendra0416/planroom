@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { LessonPlanRecord } from '@/backend/models/types';
 import { subjectLabel } from '@/frontend/components/plans/labels';
 import { StatusMark } from '@/frontend/components/plans/StatusMark';
-import { fieldGrade } from '@/frontend/copy';
+import { fieldGrade, untitledPlan } from '@/frontend/copy';
 
 /**
  * One register row. The whole row opens the plan. It is not a card.
@@ -13,7 +13,7 @@ import { fieldGrade } from '@/frontend/copy';
 export function RegisterRow({ plan }: { plan: LessonPlanRecord }) {
   return (
     <Link className="register-row" href={`/plans/${plan.id}`}>
-      <span className="register-title">{plan.title ?? ''}</span>
+      <span className="register-title">{plan.title ?? untitledPlan}</span>
       <span className="register-meta">{plan.subject ? subjectLabel(plan.subject) : ''}</span>
       <span className="register-meta">{plan.grade === undefined ? '' : `${fieldGrade} ${plan.grade}`}</span>
       <StatusMark status={plan.status} />

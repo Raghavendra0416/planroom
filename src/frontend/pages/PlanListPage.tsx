@@ -80,8 +80,8 @@ function PlanList() {
  */
 function RegisterFallback() {
   return (
-    <main aria-busy="true" className="register-page">
+    <div aria-busy="true" className="register-page">
       <RegisterSkeleton />
-    </main>
+    </div>
   );
 }

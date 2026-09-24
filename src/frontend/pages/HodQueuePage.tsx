@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from 'react';
 import type { LessonPlanRecord } from '@/backend/models/types';
 import { RegisterView } from '@/frontend/components/plans/RegisterView';
 import { RegisterSkeleton } from '@/frontend/components/plans/Skeleton';
-import { emptyQueue, filterNone, navQueue, queueForbidden } from '@/frontend/copy';
+import { BackButton } from '@/frontend/components/ui/BackButton';
+import { backToHome, emptyQueue, filterNone, navQueue, queueForbidden } from '@/frontend/copy';
 import { useSession } from '@/frontend/contexts/SessionContext';
 import { hasNarrowingFilters, usePlanFilters } from '@/frontend/hooks/usePlanFilters';
 import { listPlans } from '@/frontend/services/plans';
@@ -78,9 +79,12 @@ function HodQueue() {
 
   if (actor?.role !== 'HOD') {
     return (
-      <main className="register-page">
+      <div className="register-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/" label={backToHome} />
+        </div>
         <p>{queueForbidden}</p>
-      </main>
+      </div>
     );
   }
 
@@ -104,8 +108,8 @@ function HodQueue() {
  */
 function QueueFallback() {
   return (
-    <main aria-busy="true" className="register-page">
+    <div aria-busy="true" className="register-page">
       <RegisterSkeleton />
-    </main>
+    </div>
   );
 }

@@ -1,24 +1,23 @@
 'use client';
 
-import { Button } from '@/frontend/components/ui/button';
-import { homeLead, homeTitle, navPlans, signIn, step1, step2, step3 } from '@/frontend/copy';
+import { DashboardMetrics } from '@/frontend/components/dashboard/DashboardMetrics';
+import { RegisterSkeleton } from '@/frontend/components/plans/Skeleton';
 import { useSession } from '@/frontend/contexts/SessionContext';
 
 /**
- * Left-aligned introduction with one primary action for the current session.
- * @returns The home page content.
+ * Signed-in home dashboard. Signed-out visitors never arrive here; the proxy sends them to login.
+ * @returns The home dashboard, or a skeleton while the session settles.
  */
 export function HomePage() {
-  const { actor } = useSession();
+  const { actor, ready } = useSession();
 
-  return (
-    <main className="home">
-      <h1>{homeTitle}</h1>
-      <p className="lead">{homeLead}</p>
-      <p className="step">{step1}</p>
-      <p className="step">{step2}</p>
-      <p className="step">{step3}</p>
-      {actor ? <Button href="/plans">{navPlans}</Button> : <Button href="/login">{signIn}</Button>}
-    </main>
-  );
+  if (!ready || !actor) {
+    return (
+      <div aria-busy="true" className="home">
+        <RegisterSkeleton />
+      </div>
+    );
+  }
+
+  return <DashboardMetrics actor={actor} />;
 }

@@ -82,6 +82,8 @@ export interface ReviewNoteRecord {
   id: string;
   planId: string;
   authorId: string;
+  authorName: string;
+  authorRole: Role;
   body: string;
   kind: NoteKind;
   createdAt: string;

@@ -1,7 +1,7 @@
 import type { PlanFilterKey, PlanFilters } from '@/frontend/hooks/usePlanFilters';
 import { statusOptions, subjectOptions } from '@/frontend/components/plans/labels';
 import { SelectField } from '@/frontend/components/ui/select';
-import { fieldGrade, fieldSubject, fieldTitle, sortCreated, sortUpdated, status } from '@/frontend/copy';
+import { fieldGrade, fieldSubject, fieldTitle, sortBy, sortCreated, sortUpdated, status } from '@/frontend/copy';
 
 const GRADES = [6, 7, 8, 9, 10, 11, 12] as const;
 
@@ -50,6 +50,7 @@ export function PlanFilterBar({
         onValueChange={(value) => onChange('status', value)}
       />
       <SelectField
+        caption={sortBy}
         id="filter-sort"
         options={[
           { value: 'updatedAt', label: sortUpdated },

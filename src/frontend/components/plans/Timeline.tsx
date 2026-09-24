@@ -1,7 +1,9 @@
 import type { ReviewNoteRecord } from '@/backend/models/types';
+import { noteKindLabel, roleLabel } from '@/frontend/components/plans/labels';
+import { reviewNotes, unknownAuthor } from '@/frontend/copy';
 
 /**
- * Notes for one plan, oldest first, separated by rules.
+ * Notes for one plan, oldest first, each with its event badge and author.
  * @param props - Timeline props.
  * @param props.notes - Notes already ordered oldest first.
  * @returns The note list, or nothing when the plan has no notes.
@@ -12,9 +14,15 @@ export function Timeline({ notes }: { notes: readonly ReviewNoteRecord[] }) {
   }
 
   return (
-    <ol className="timeline">
+    <ol aria-label={reviewNotes} className="timeline">
       {notes.map((note) => (
         <li className="timeline-item" key={note.id}>
+          <p>
+            <span className={`timeline-badge timeline-badge-${note.kind}`}>{noteKindLabel(note.kind)}</span>
+            <span className="timeline-author">
+              {note.authorName === '' ? unknownAuthor : note.authorName} · {roleLabel(note.authorRole)}
+            </span>
+          </p>
           <p>{note.body}</p>
           <p className="timeline-time">{formatNoteTime(note.createdAt)}</p>
         </li>

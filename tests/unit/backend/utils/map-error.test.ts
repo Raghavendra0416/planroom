@@ -39,7 +39,7 @@ describe('toHttpError', () => {
       { error: new ForbiddenError('You cannot open this plan.'), status: 403, name: 'ForbiddenError' },
       { error: new NotFoundError('That page is not here.'), status: 404, name: 'NotFoundError' },
       { error: new ConflictError('That email already has an account. Sign in.'), status: 409, name: 'ConflictError' },
-      { error: new AiProviderError('Could not draft objectives. Write them yourself.'), status: 502, name: 'AiProviderError' },
+      { error: new AiProviderError('Could not draft the lesson plan. Write it yourself.'), status: 502, name: 'AiProviderError' },
       {
         error: new ConfigurationError('AI provider must be openai-compatible or gemini.'),
         status: 500,
@@ -75,6 +75,44 @@ describe('toHttpError', () => {
           title: 'Title is required.',
           subject: 'Subject is required.',
         },
+      },
+    });
+  });
+
+  it('names the field when a mongoose error has no message', () => {
+    const error = new Error('Plan validation failed: grade: oops.');
+    error.name = 'ValidationError';
+    Object.assign(error, {
+      errors: {
+        grade: { path: 'grade', kind: 'min' },
+        title: 'broken',
+      },
+    });
+
+    expect(toHttpError(error)).toEqual({
+      status: 400,
+      body: {
+        ok: false,
+        error: 'grade is invalid.',
+        fields: {
+          grade: 'grade is invalid.',
+          title: 'title is invalid.',
+        },
+      },
+    });
+  });
+
+  it('uses a form-level sentence when a mongoose error has no fields', () => {
+    const error = new Error('Plan validation failed.');
+    error.name = 'ValidationError';
+    Object.assign(error, { errors: {} });
+
+    expect(toHttpError(error)).toEqual({
+      status: 400,
+      body: {
+        ok: false,
+        error: 'Check the highlighted fields.',
+        fields: {},
       },
     });
   });

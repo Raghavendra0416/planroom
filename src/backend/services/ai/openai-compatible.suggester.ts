@@ -1,11 +1,14 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
-  draftObjectives,
+  draftLessonMore,
+  draftLessonSuggestions,
   readAiApiKey,
   readAiBaseUrl,
-  type ObjectiveSuggester,
+  type LessonSuggester,
+  type LessonSuggestions,
   type SuggestInput,
-} from '@/backend/services/ai/objective-suggester';
+  type SuggestMoreInput,
+} from '@/backend/services/ai/lesson-suggester';
 import { AiProviderError } from '@/backend/utils/errors';
 
 /**
@@ -40,9 +43,9 @@ export function resolveStructuredOutputs(model: string, option: boolean | 'auto'
 }
 
 /**
- * Drafts objectives through an OpenAI-compatible chat endpoint.
+ * Drafts lesson suggestions through an OpenAI-compatible chat endpoint.
  */
-export class OpenAiCompatibleSuggester implements ObjectiveSuggester {
+export class OpenAiCompatibleSuggester implements LessonSuggester {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly supportsStructuredOutputs: boolean | 'auto';
@@ -60,26 +63,59 @@ export class OpenAiCompatibleSuggester implements ObjectiveSuggester {
   }
 
   /**
-   * Drafts 3 to 5 lesson objectives. The prompt does not mention duration.
-   * @param input - Topic, subject, grade, and optional duration kept out of the prompt.
-   * @returns Three to five objective lines.
+   * Drafts objectives, activities, and resources. The prompt includes duration when it was sent.
+   * @param input - Topic, subject, grade, and optional duration used in the prompt.
+   * @returns The three aligned suggestion lists.
    * @throws {AiProviderError} When the provider cannot be reached, times out, or rejects the call.
    */
-  async suggest(input: SuggestInput): Promise<string[]> {
+  async suggest(input: SuggestInput): Promise<LessonSuggestions> {
     try {
-      const structuredOutputs = resolveStructuredOutputs(this.model, this.supportsStructuredOutputs);
-      const provider = createOpenAICompatible({
-        name: 'planroom',
-        baseURL: readAiBaseUrl() ?? '',
-        apiKey: readAiApiKey() ?? '',
-        supportsStructuredOutputs: structuredOutputs,
-      });
-      return await draftObjectives(provider(this.model), input, this.timeoutMs, structuredOutputs);
+      return await draftLessonSuggestions(this.modelInstance(), input, this.timeoutMs, this.structured());
     } catch (error) {
       if (error instanceof AiProviderError) {
         throw error;
       }
-      throw new AiProviderError('Could not draft objectives. Write them yourself.');
+      throw new AiProviderError('Could not draft the lesson plan. Write it yourself.');
     }
+  }
+
+  /**
+   * Drafts 3 more lines for one category without repeating excluded lines.
+   * @param input - Class context, the category, and lines to avoid repeating.
+   * @returns Three novel lines for that category.
+   * @throws {AiProviderError} When the provider cannot be reached, times out, rejects the call, or repeats a line.
+   */
+  async suggestMore(input: SuggestMoreInput): Promise<string[]> {
+    try {
+      return await draftLessonMore(this.modelInstance(), input, this.timeoutMs, this.structured());
+    } catch (error) {
+      if (error instanceof AiProviderError) {
+        throw error;
+      }
+      throw new AiProviderError('Could not draft the lesson plan. Write it yourself.');
+    }
+  }
+
+  /**
+   * Builds the configured provider model.
+   * @returns The model passed to the draft functions.
+   */
+  private modelInstance(): import('ai').LanguageModel {
+    const structuredOutputs = this.structured();
+    const provider = createOpenAICompatible({
+      name: 'planroom',
+      baseURL: readAiBaseUrl() ?? '',
+      apiKey: readAiApiKey() ?? '',
+      supportsStructuredOutputs: structuredOutputs,
+    });
+    return provider(this.model);
+  }
+
+  /**
+   * Resolves structured-output mode for this model.
+   * @returns True when json_schema structured outputs should be used.
+   */
+  private structured(): boolean {
+    return resolveStructuredOutputs(this.model, this.supportsStructuredOutputs);
   }
 }

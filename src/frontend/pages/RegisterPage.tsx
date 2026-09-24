@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import { BackButton } from '@/frontend/components/ui/BackButton';
 import { Button } from '@/frontend/components/ui/button';
-import { duplicateEmail, register, registerFail, signIn } from '@/frontend/copy';
+import { backToLogin, duplicateEmail, register, registerFail, signIn } from '@/frontend/copy';
 import { useSession } from '@/frontend/contexts/SessionContext';
 
 interface FieldErrors {
@@ -44,11 +45,12 @@ export function RegisterPage() {
         const nextFields = readFields(await readBody(response));
         setFields(nextFields);
         setFormError(hasFieldError(nextFields) ? null : registerFail);
+        focusFirstRegisterError(nextFields, hasFieldError(nextFields));
         return;
       }
 
       await refresh();
-      router.push('/plans');
+      router.push('/');
     } catch {
       setFormError(registerFail);
     } finally {
@@ -57,7 +59,10 @@ export function RegisterPage() {
   }
 
   return (
-    <main className="auth">
+    <div className="auth">
+      <div className="page-top">
+        <BackButton fallbackHref="/login" label={backToLogin} />
+      </div>
       <h1>{register}</h1>
       <form className="auth-form" noValidate onSubmit={(event) => void onSubmit(event)}>
         <label htmlFor="register-name">
@@ -67,12 +72,17 @@ export function RegisterPage() {
             name="name"
             type="text"
             autoComplete="name"
+            aria-describedby={fields.name ? 'register-name-error' : undefined}
             aria-invalid={fields.name ? true : undefined}
             className={fields.name ? 'has-error' : undefined}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          {fields.name ? <span className="field-error">{fields.name}</span> : null}
+          {fields.name ? (
+            <span className="field-error" id="register-name-error" role="alert">
+              {fields.name}
+            </span>
+          ) : null}
         </label>
         <label htmlFor="register-email">
           Email
@@ -82,13 +92,16 @@ export function RegisterPage() {
             type="email"
             autoCapitalize="none"
             autoComplete="email"
+            aria-describedby={fields.email ? 'register-email-error' : undefined}
             aria-invalid={fields.email ? true : undefined}
             className={fields.email ? 'has-error' : undefined}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
           {fields.email ? (
-            <span className="field-error">{fields.email === duplicateEmail ? duplicateEmail : fields.email}</span>
+            <span className="field-error" id="register-email-error" role="alert">
+              {fields.email === duplicateEmail ? duplicateEmail : fields.email}
+            </span>
           ) : null}
         </label>
         <label htmlFor="register-password">
@@ -98,12 +111,17 @@ export function RegisterPage() {
             name="password"
             type="password"
             autoComplete="new-password"
+            aria-describedby={fields.password ? 'register-password-error' : undefined}
             aria-invalid={fields.password ? true : undefined}
             className={fields.password ? 'has-error' : undefined}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {fields.password ? <span className="field-error">{fields.password}</span> : null}
+          {fields.password ? (
+            <span className="field-error" id="register-password-error" role="alert">
+              {fields.password}
+            </span>
+          ) : null}
         </label>
         <Button disabled={pending} type="submit">
           {register}
@@ -117,7 +135,7 @@ export function RegisterPage() {
       <p className="auth-switch">
         <Link href="/login">{signIn}</Link>
       </p>
-    </main>
+    </div>
   );
 }
 
@@ -173,4 +191,17 @@ async function readBody(response: Response): Promise<unknown> {
  */
 function hasFieldError(fields: FieldErrors): boolean {
   return Boolean(fields.name || fields.email || fields.password);
+}
+
+/**
+ * Moves focus to the first failing register field so the error is announced.
+ * @param fields - Messages keyed by field.
+ * @param hasError - True when at least one field failed.
+ */
+function focusFirstRegisterError(fields: FieldErrors, hasError: boolean): void {
+  if (!hasError) {
+    return;
+  }
+  const id = fields.name ? 'register-name' : fields.email ? 'register-email' : 'register-password';
+  document.getElementById(id)?.focus();
 }

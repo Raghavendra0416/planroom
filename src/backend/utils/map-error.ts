@@ -53,7 +53,7 @@ export function toHttpError(error: unknown): HttpError {
 
   if (isMongooseValidation(error)) {
     const fields = fieldMessages(error.errors);
-    const first = Object.values(fields)[0] ?? 'Invalid';
+    const first = Object.values(fields)[0] ?? 'Check the highlighted fields.';
     return { status: 400, body: { ok: false, error: first, fields } };
   }
 
@@ -114,12 +114,12 @@ function fieldMessages(errors: Record<string, unknown>): Record<string, string> 
 
   for (const [key, value] of Object.entries(errors)) {
     if (!isRecord(value)) {
-      fields[key] = 'Invalid';
+      fields[key] = `${key} is invalid.`;
       continue;
     }
 
     const field = typeof value.path === 'string' && value.path.length > 0 ? value.path : key;
-    const message = typeof value.message === 'string' && value.message.length > 0 ? value.message : 'Invalid';
+    const message = typeof value.message === 'string' && value.message.length > 0 ? value.message : `${field} is invalid.`;
     fields[field] = message;
   }
 

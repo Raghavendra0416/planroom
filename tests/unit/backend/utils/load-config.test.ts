@@ -50,7 +50,7 @@ describe('loadConfig', () => {
 
     expect(config.ai.provider).toBe('gemini');
     expect(config.ai.model).toBe('gemini-2.0-flash');
-    expect(config.app.url).toBe('https://REPLACE.vercel.app');
+    expect(config.app.url).toBe('https://planroom.site/');
     expect(config.app.name).toBe('Planroom');
     expect(config.auth.sessionDays).toBe(14);
     expect(config.ai.enabled).toBe(true);
@@ -122,8 +122,8 @@ describe('loadConfig', () => {
 
     expect(loadConfig().footer).toEqual({
       fullName: 'Yellapanthula Pragjna Swaroop Raghavendra',
-      githubUrl: 'https://github.com/',
-      linkedinUrl: 'https://www.linkedin.com/',
+      githubUrl: 'https://github.com/Raghavendra0416/planroom',
+      linkedinUrl: 'https://www.linkedin.com/in/raghavendra012/',
     });
   });
 

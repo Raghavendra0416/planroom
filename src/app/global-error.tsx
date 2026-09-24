@@ -11,9 +11,13 @@ export default function GlobalError() {
   return (
     <html lang="en">
       <body>
-        <main className="home">
+        <div className="home">
           <p>{globalError}</p>
-        </main>
+          <p>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/">Back to home</a>
+          </p>
+        </div>
       </body>
     </html>
   );

@@ -6,7 +6,7 @@ import { toHttpError } from '@/backend/utils/map-error';
 export const dynamic = 'force-dynamic';
 
 /**
- * Reports whether Suggest objectives is switched on and has a key.
+ * Reports whether lesson suggestions are switched on and have a key.
  * @param request - Incoming request. The session cookie is read from its headers.
  * @returns `{ enabled, available }`. This does not increment the cap or call a provider.
  */
@@ -18,9 +18,9 @@ export function GET(request: Request): Promise<NextResponse> {
 }
 
 /**
- * Drafts 3 to 5 objectives for the signed-in user. The plan is not written.
+ * Drafts objectives, activities, and resources for the signed-in user. The plan is not written.
  * @param request - Incoming request. The JSON body is topic, subject, grade, and optional duration.
- * @returns `{ objectives }`, the hour-cap failure, or the mapped error body.
+ * @returns The aligned suggestion lists, the hour-cap failure, or the mapped error body.
  */
 export function POST(request: Request): Promise<NextResponse> {
   return respond(async () => {

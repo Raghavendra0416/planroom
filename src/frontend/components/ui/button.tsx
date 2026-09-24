@@ -2,18 +2,19 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 type ButtonProps = {
-  variant?: 'primary' | 'quiet';
+  variant?: 'primary' | 'quiet' | 'danger';
   href?: string;
   children: ReactNode;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
   onClick?: () => void;
+  ariaLabel?: string;
 };
 
 /**
- * Ink or quiet action with a 44px target and no hover motion.
+ * Ink, quiet, or danger action with a 44px target and no hover motion.
  * @param props - Variant, optional destination, and button behavior.
- * @param props.variant - `primary` fills with ink. `quiet` is a rule outline. Defaults to primary.
+ * @param props.variant - `primary` fills with ink. `quiet` is a rule outline. `danger` is oxide red. Defaults to primary.
  * @param props.href - When set, renders a link instead of a button.
  * @param props.children - Visible label.
  * @param props.type - Button type when this is not a link.
@@ -28,19 +29,20 @@ export function Button({
   type = 'button',
   disabled = false,
   onClick,
+  ariaLabel,
 }: ButtonProps) {
-  const className = variant === 'quiet' ? 'btn btn-quiet' : 'btn btn-primary';
+  const className = variant === 'quiet' ? 'btn btn-quiet' : variant === 'danger' ? 'btn btn-danger' : 'btn btn-primary';
 
   if (href) {
     return (
-      <Link className={className} href={href}>
+      <Link aria-label={ariaLabel} className={className} href={href}>
         {children}
       </Link>
     );
   }
 
   return (
-    <button className={className} disabled={disabled} type={type} onClick={onClick}>
+    <button aria-label={ariaLabel} className={className} disabled={disabled} type={type} onClick={onClick}>
       {children}
     </button>
   );

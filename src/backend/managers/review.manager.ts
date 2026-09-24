@@ -1,5 +1,6 @@
 import { lessonPlanModel } from '@/backend/models/lesson-plan.model';
 import { reviewNoteModel } from '@/backend/models/review-note.model';
+import { userModel } from '@/backend/models/user.model';
 import type { Actor, LessonPlanRecord, NoteKind, PlanStatus, ReviewNoteRecord } from '@/backend/models/types';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/backend/utils/errors';
 import {
@@ -135,7 +136,7 @@ export class ReviewManager {
     this.requireHod(actor);
     const body = trimmedNote(note);
 
-    // 3. Store one comment note.
+    // 3. Store one comment note. The actor is the author, so the name and role come from the actor.
     try {
       const created = await this.notes.create({
         planId: plan._id,
@@ -143,7 +144,10 @@ export class ReviewManager {
         kind: 'COMMENT',
         body,
       });
-      return toReviewNoteRecord(created);
+      return toReviewNoteRecord({
+        ...created.toObject(),
+        authorId: { _id: actor.id, name: actor.name, role: actor.role },
+      });
     } catch (error) {
       rethrowDomain(error);
     }
@@ -165,9 +169,17 @@ export class ReviewManager {
       throw new ForbiddenError(denial);
     }
 
-    // 2. Return that plan's notes, oldest first.
-    const notes = await this.notes.find({ planId: plan._id }).sort({ createdAt: 1, _id: 1 }).lean();
-    return notes.map((note) => toReviewNoteRecord(note));
+    // 2. Return that plan's notes, oldest first, with the author name and role joined.
+    // Deleted authors keep their note with an empty name; the timeline shows Unknown.
+    userModel();
+    const notes = await this.notes
+      .find({ planId: plan._id })
+      .sort({ createdAt: 1, _id: 1 })
+      .populate('authorId', 'name role')
+      .lean();
+    return notes.map((note) =>
+      toReviewNoteRecord({ ...note, authorId: note.authorId ?? { _id: '', name: '', role: 'TEACHER' } }),
+    );
   }
 
   /**

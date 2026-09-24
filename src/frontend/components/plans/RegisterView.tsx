@@ -2,8 +2,9 @@ import type { LessonPlanRecord } from '@/backend/models/types';
 import { PlanFilterBar } from '@/frontend/components/plans/PlanFilterBar';
 import { RegisterRow } from '@/frontend/components/plans/RegisterRow';
 import { RegisterSkeleton } from '@/frontend/components/plans/Skeleton';
+import { BackButton } from '@/frontend/components/ui/BackButton';
 import { Button } from '@/frontend/components/ui/button';
-import { genericError, retry } from '@/frontend/copy';
+import { backToHome, genericError, retry } from '@/frontend/copy';
 import type { PlanFilterKey, PlanFilters } from '@/frontend/hooks/usePlanFilters';
 
 /**
@@ -39,7 +40,10 @@ export function RegisterView({
   onRetry: () => void;
 }) {
   return (
-    <main aria-busy={loading || undefined} className="register-page">
+    <div aria-busy={loading || undefined} className="register-page">
+      <div className="page-top">
+        <BackButton fallbackHref="/" label={backToHome} />
+      </div>
       <h1>{heading}</h1>
       <PlanFilterBar filters={filters} onChange={onChange} />
       {loading ? <RegisterSkeleton /> : null}
@@ -53,12 +57,14 @@ export function RegisterView({
       ) : null}
       {!loading && !error && plans.length === 0 ? <p>{empty}</p> : null}
       {!loading && !error && plans.length > 0 ? (
-        <div className="register">
+        <ul className="register">
           {plans.map((plan) => (
-            <RegisterRow key={plan.id} plan={plan} />
+            <li key={plan.id}>
+              <RegisterRow plan={plan} />
+            </li>
           ))}
-        </div>
+        </ul>
       ) : null}
-    </main>
+    </div>
   );
 }

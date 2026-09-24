@@ -4,7 +4,7 @@ const TEACHER = 'teacher@planroom.demo';
 const HOD = 'hod@planroom.demo';
 const PASSWORD = 'planroom';
 
-test('teacher submits a complete plan and the head of department sends it back', async ({ page }) => {
+test('teacher submits a plan, HOD sends it back, and teacher edits it back to review', async ({ page }) => {
   const title = `River ratios ${Date.now()}`;
   const note = 'Add a worked example before the practice.';
 
@@ -42,8 +42,26 @@ test('teacher submits a complete plan and the head of department sends it back',
   await dialog.getByRole('button', { name: 'Send back' }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('Sent back', { exact: true })).toBeVisible();
+  await expect(page.getByText('Sent back', { exact: true }).first()).toBeVisible();
   await expect(page.getByText(note, { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await signIn(page, TEACHER);
+  await page.getByRole('link', { name: title }).click();
+  await expect(page.getByText('Sent back', { exact: true }).first()).toBeVisible();
+  await page.getByRole('heading', { name: title }).getByRole('link', { name: title }).click();
+  await expect(page).toHaveURL(/\/plans\/[a-f0-9]{24}\/edit$/);
+
+  await page.getByLabel('Title').fill(`${title} revised`);
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.getByText('Saved as Draft. Submit it for review when ready.')).toBeVisible();
+  await expect(page).toHaveURL(/\/plans\/[a-f0-9]{24}$/);
+  await expect(page.getByText('Draft', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Submit for review' }).click();
+  await expect(page.getByText('In review', { exact: true })).toBeVisible();
 });
 
 /**
@@ -56,7 +74,7 @@ async function signIn(page: Page, email: string): Promise<void> {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/plans$/);
+  await expect(page).toHaveURL(/^http:\/\/[^/]+\/$/);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 }
 

@@ -151,6 +151,23 @@ describe('status machine', () => {
     expect(notes[0]?.body).toBe('Add a plenary.');
   });
 
+  it('returns a submitted plan to draft on owner edit and stores a second note on resubmit', async () => {
+    const teacher = actor('TEACHER', 'Ada');
+    const { plans } = managers();
+    const created = await plans.create(teacher, { ...completePlan, intent: 'submit' });
+
+    const saved = await plans.save(teacher, created.id, { title: 'Revised after review' });
+    await plans.save(teacher, created.id, { ...completePlan, title: 'Revised after review' });
+
+    expect(saved.status).toBe('DRAFT');
+    const resubmitted = await plans.submit(teacher, created.id);
+
+    expect(resubmitted.status).toBe('SUBMITTED');
+    const notes = await reviewNoteModel().find({ planId: created.id, kind: 'SUBMITTED' }).lean();
+    expect(notes).toHaveLength(2);
+    expect(notes.every((note) => note.body === 'Submitted for review.')).toBe(true);
+  });
+
   it('submits a sent-back plan and stores a second submitted note', async () => {
     const teacher = actor('TEACHER', 'Ada');
     const hod = actor('HOD', 'Hale');

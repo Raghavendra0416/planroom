@@ -32,13 +32,15 @@ export function PlanDocument({ plan, titleHref }: { plan: LessonPlanRecord; titl
       ) : (
         <StatusMark status={plan.status} />
       )}
-      {plan.subject ? <Field label={fieldSubject} value={subjectLabel(plan.subject)} /> : null}
-      {plan.grade !== undefined ? <p>{`${fieldGrade} ${plan.grade}`}</p> : null}
-      {plan.durationMinutes !== undefined ? <Field label={fieldDuration} value={String(plan.durationMinutes)} /> : null}
-      {plan.topic ? <Field label={fieldTopic} value={plan.topic} /> : null}
-      {plan.objectives ? <Field label={fieldObjectives} value={plan.objectives} /> : null}
-      {plan.activities ? <Field label={fieldActivities} value={plan.activities} /> : null}
-      {plan.resources ? <Field label={fieldResources} value={plan.resources} /> : null}
+      <dl>
+        {plan.subject ? <Field label={fieldSubject} value={subjectLabel(plan.subject)} /> : null}
+        {plan.grade !== undefined ? <Field label={fieldGrade} value={String(plan.grade)} /> : null}
+        {plan.durationMinutes !== undefined ? <Field label={fieldDuration} value={String(plan.durationMinutes)} /> : null}
+        {plan.topic ? <Field label={fieldTopic} value={plan.topic} /> : null}
+        {plan.objectives ? <Field label={fieldObjectives} value={plan.objectives} /> : null}
+        {plan.activities ? <Field label={fieldActivities} value={plan.activities} /> : null}
+        {plan.resources ? <Field label={fieldResources} value={plan.resources} /> : null}
+      </dl>
     </article>
   );
 }
@@ -52,9 +54,9 @@ export function PlanDocument({ plan, titleHref }: { plan: LessonPlanRecord; titl
  */
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <p>
-      <span className="plan-kicker">{label}</span>
-      {value}
-    </p>
+    <div>
+      <dt className="plan-kicker">{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }

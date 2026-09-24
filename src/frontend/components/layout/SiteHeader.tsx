@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/frontend/components/ui/button';
-import { homeTitle, navPlans, navQueue, newPlan, signOut } from '@/frontend/copy';
+import { homeTitle, navHome, navPlans, navQueue, newPlan, signOut } from '@/frontend/copy';
 import { useSession } from '@/frontend/contexts/SessionContext';
 
 /**
@@ -38,10 +38,11 @@ export function SiteHeader() {
       </Link>
       {actor ? (
         <nav className="site-nav">
+          <Link href="/">{navHome}</Link>
           <Link href="/plans">{navPlans}</Link>
-          <Link href="/plans/new">{newPlan}</Link>
+          {actor.role === 'TEACHER' ? <Button href="/plans/new">{newPlan}</Button> : null}
           {actor.role === 'HOD' ? <Link href="/hod">{navQueue}</Link> : null}
-          <Button type="button" variant="quiet" onClick={() => void onSignOut()}>
+          <Button type="button" variant="danger" onClick={() => void onSignOut()}>
             {signOut}
           </Button>
         </nav>

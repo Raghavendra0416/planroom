@@ -7,12 +7,15 @@ import { NoteDialog } from '@/frontend/components/plans/NoteDialog';
 import { PlanDocument } from '@/frontend/components/plans/PlanDocument';
 import { DocumentSkeleton } from '@/frontend/components/plans/Skeleton';
 import { Timeline } from '@/frontend/components/plans/Timeline';
+import { BackButton } from '@/frontend/components/ui/BackButton';
 import { Button } from '@/frontend/components/ui/button';
 import {
   approve,
   approveFail,
+  backToPlans,
   comment,
   commentFail,
+  edit,
   emptyNote,
   forbidden,
   genericError,
@@ -171,46 +174,63 @@ export function PlanDetailPage({ planId }: { planId: string }) {
 
   if (load.kind === 'loading') {
     return (
-      <main aria-busy="true" className="plan-page">
+      <div aria-busy="true" className="plan-page">
         <DocumentSkeleton />
-      </main>
+      </div>
     );
   }
 
   if (load.kind === 'missing') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{notFound}</p>
-      </main>
+      </div>
     );
   }
 
   if (load.kind === 'forbidden') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{forbidden}</p>
-      </main>
+      </div>
     );
   }
 
   if (load.kind === 'error') {
     return (
-      <main className="plan-page">
+      <div className="plan-page">
+        <div className="page-top">
+          <BackButton fallbackHref="/plans" label={backToPlans} />
+        </div>
         <p>{genericError}</p>
         <Button type="button" onClick={() => setAttempt((current) => current + 1)}>
           {retry}
         </Button>
-      </main>
+      </div>
     );
   }
 
   const actions = actor ? detailActions(load.plan, actor) : null;
 
   return (
-    <main className="plan-page">
+    <div className="plan-page">
+      <div className="page-top">
+        <BackButton fallbackHref="/plans" label={backToPlans} />
+      </div>
       <PlanDocument plan={load.plan} titleHref={actions?.edit ? `/plans/${load.plan.id}/edit` : undefined} />
       {actions ? (
         <div className="plan-actions">
+          {actions.edit ? (
+            <Button href={`/plans/${load.plan.id}/edit`} type="button">
+              {edit}
+            </Button>
+          ) : null}
           {actions.submit ? (
             <Button disabled={pending} type="button" onClick={() => void onSubmit()}>
               {submit}
@@ -264,7 +284,7 @@ export function PlanDetailPage({ planId }: { planId: string }) {
           }}
         />
       ) : null}
-    </main>
+    </div>
   );
 }
 
@@ -303,7 +323,8 @@ function detailActions(plan: LessonPlanRecord, actor: SessionActor): {
 } {
   const owns = plan.authorId.toLowerCase() === actor.id.toLowerCase();
   const hod = actor.role === 'HOD';
-  const editable = owns && (plan.status === 'DRAFT' || plan.status === 'CHANGES_REQUESTED');
+  const editable =
+    owns && (plan.status === 'DRAFT' || plan.status === 'SUBMITTED' || plan.status === 'CHANGES_REQUESTED');
 
   return {
     submit: editable,

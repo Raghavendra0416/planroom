@@ -103,17 +103,23 @@ export class PlanManager {
 
   /**
    * Creates a draft owned by the actor. `intent: "submit"` also submits that new plan.
-   * @param actor - Signed-in author.
+   * @param actor - Signed-in author. Must be a teacher.
    * @param input - Plan fields. Owner fields are ignored.
    * @returns The created plan, submitted when that was the intent.
+   * @throws {ForbiddenError} When the actor is not a teacher.
    * @throws {ValidationError} When a present field does not fit, or a submit is incomplete.
    */
   async create(actor: Actor, input: CreatePlanBody): Promise<LessonPlanRecord> {
-    // 1. Reject a present field that does not fit, then insert a draft owned by the actor.
+    // 1. Only teachers create plans. HOD accounts review them.
+    if (actor.role !== 'TEACHER') {
+      throw new ForbiddenError('You cannot create a plan.');
+    }
+
+    // 2. Reject a present field that does not fit, then insert a draft owned by the actor.
     const draft = readDraftPlan(input);
     const created = await this.insertDraft(actor, draft);
 
-    // 2. Submit in this same call when asked, and delete the new row if it is not complete.
+    // 3. Submit in this same call when asked, and delete the new row if it is not complete.
     if (input.intent !== 'submit') {
       return toLessonPlanRecord(created);
     }
@@ -129,11 +135,11 @@ export class PlanManager {
   }
 
   /**
-   * Saves the owner's plan without changing its status.
+   * Saves the owner's plan. A submitted plan returns to draft and must be resubmitted. No note is written.
    * @param actor - Signed-in owner.
    * @param planId - Lesson plan id.
    * @param input - Replacement fields. Owner fields are ignored.
-   * @returns The saved plan, still in its previous status.
+   * @returns The saved plan, in draft after a submitted edit and unchanged otherwise.
    * @throws {NotFoundError} When the plan is missing or soft-deleted.
    * @throws {ForbiddenError} When the actor cannot edit this plan.
    * @throws {ValidationError} When a present field does not fit, or a sent-back plan is incomplete.
@@ -142,9 +148,12 @@ export class PlanManager {
     // 1. Load the plan and reject a missing or soft-deleted row.
     const plan = await this.load(planId);
 
-    // 2. Only the owner may edit, and only while the plan is a draft or sent back.
+    // 2. Only the owner may edit, and only while the plan is a draft, submitted, or sent back.
     const status = planStatus(plan.status);
-    if (!sameId(plan.authorId, actor.id) || (status !== 'DRAFT' && status !== 'CHANGES_REQUESTED')) {
+    if (
+      !sameId(plan.authorId, actor.id) ||
+      (status !== 'DRAFT' && status !== 'SUBMITTED' && status !== 'CHANGES_REQUESTED')
+    ) {
       throw new ForbiddenError('You cannot edit this plan.');
     }
 
@@ -152,6 +161,12 @@ export class PlanManager {
     if (status === 'DRAFT') {
       const draft = readDraftPlan(input);
       const updated = await this.writeDraft(plan._id, draft);
+      return toLessonPlanRecord(updated);
+    }
+
+    if (status === 'SUBMITTED') {
+      const draft = readDraftPlan(input);
+      const updated = await this.writeSubmittedEdit(plan._id, draft);
       return toLessonPlanRecord(updated);
     }
 
@@ -281,6 +296,32 @@ export class PlanManager {
         .findOneAndUpdate(
           { _id: id, deletedAt: null, status: 'DRAFT' },
           update,
+          { returnDocument: 'after', runValidators: true },
+        )
+        .lean();
+      if (!updated) {
+        throw new NotFoundError(missingPlanMessage);
+      }
+      return updated;
+    } catch (error) {
+      rethrowDomain(error);
+    }
+  }
+
+  /**
+   * Replaces a submitted plan with draft fields and returns it to draft. No note is written.
+   * @param id - Stored plan id.
+   * @param draft - Valid draft fields.
+   * @returns The updated plan in draft.
+   * @throws {NotFoundError} When the submitted row is no longer active.
+   */
+  private async writeSubmittedEdit(id: unknown, draft: DraftPlan) {
+    const update = draftUpdate(draft);
+    try {
+      const updated = await this.plans
+        .findOneAndUpdate(
+          { _id: id, deletedAt: null, status: 'SUBMITTED' },
+          { ...update, $set: { ...update.$set, status: 'DRAFT' satisfies PlanStatus } },
           { returnDocument: 'after', runValidators: true },
         )
         .lean();

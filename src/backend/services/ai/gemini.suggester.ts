@@ -1,17 +1,20 @@
 import { createGoogle } from '@ai-sdk/google';
 import {
-  draftObjectives,
+  draftLessonMore,
+  draftLessonSuggestions,
   readAiApiKey,
   readAiBaseUrl,
-  type ObjectiveSuggester,
+  type LessonSuggester,
+  type LessonSuggestions,
   type SuggestInput,
-} from '@/backend/services/ai/objective-suggester';
+  type SuggestMoreInput,
+} from '@/backend/services/ai/lesson-suggester';
 import { AiProviderError } from '@/backend/utils/errors';
 
 /**
- * Drafts objectives through the Gemini API.
+ * Drafts lesson suggestions through the Gemini API.
  */
-export class GeminiSuggester implements ObjectiveSuggester {
+export class GeminiSuggester implements LessonSuggester {
   private readonly model: string;
   private readonly timeoutMs: number;
 
@@ -26,22 +29,47 @@ export class GeminiSuggester implements ObjectiveSuggester {
   }
 
   /**
-   * Drafts 3 to 5 lesson objectives. The prompt does not mention duration.
-   * @param input - Topic, subject, grade, and optional duration kept out of the prompt.
-   * @returns Three to five objective lines.
+   * Drafts objectives, activities, and resources. The prompt includes duration when it was sent.
+   * @param input - Topic, subject, grade, and optional duration used in the prompt.
+   * @returns The three aligned suggestion lists.
    * @throws {AiProviderError} When the provider cannot be reached, times out, or rejects the call.
    */
-  async suggest(input: SuggestInput): Promise<string[]> {
+  async suggest(input: SuggestInput): Promise<LessonSuggestions> {
     try {
-      const apiKey = readAiApiKey() ?? '';
-      const baseURL = readAiBaseUrl();
-      const provider = createGoogle(baseURL === null ? { apiKey } : { apiKey, baseURL });
-      return await draftObjectives(provider(this.model), input, this.timeoutMs);
+      return await draftLessonSuggestions(this.modelInstance(), input, this.timeoutMs);
     } catch (error) {
       if (error instanceof AiProviderError) {
         throw error;
       }
-      throw new AiProviderError('Could not draft objectives. Write them yourself.');
+      throw new AiProviderError('Could not draft the lesson plan. Write it yourself.');
     }
+  }
+
+  /**
+   * Drafts 3 more lines for one category without repeating excluded lines.
+   * @param input - Class context, the category, and lines to avoid repeating.
+   * @returns Three novel lines for that category.
+   * @throws {AiProviderError} When the provider cannot be reached, times out, rejects the call, or repeats a line.
+   */
+  async suggestMore(input: SuggestMoreInput): Promise<string[]> {
+    try {
+      return await draftLessonMore(this.modelInstance(), input, this.timeoutMs);
+    } catch (error) {
+      if (error instanceof AiProviderError) {
+        throw error;
+      }
+      throw new AiProviderError('Could not draft the lesson plan. Write it yourself.');
+    }
+  }
+
+  /**
+   * Builds the configured provider model.
+   * @returns The model passed to the draft functions.
+   */
+  private modelInstance(): import('ai').LanguageModel {
+    const apiKey = readAiApiKey() ?? '';
+    const baseURL = readAiBaseUrl();
+    const provider = createGoogle(baseURL === null ? { apiKey } : { apiKey, baseURL });
+    return provider(this.model);
   }
 }

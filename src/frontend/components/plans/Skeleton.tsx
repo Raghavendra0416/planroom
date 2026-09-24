@@ -1,3 +1,5 @@
+import { loading } from '@/frontend/copy';
+
 const ROW_KEYS = ['row-1', 'row-2', 'row-3', 'row-4'] as const;
 
 /**
@@ -6,15 +8,18 @@ const ROW_KEYS = ['row-1', 'row-2', 'row-3', 'row-4'] as const;
  */
 export function RegisterSkeleton() {
   return (
-    <div aria-hidden="true" className="register-skeleton">
-      {ROW_KEYS.map((key) => (
-        <div className="skeleton-row" key={key}>
-          <span className="skeleton-bar skeleton-bar-title" />
-          <span className="skeleton-bar" />
-          <span className="skeleton-bar" />
-          <span className="skeleton-bar skeleton-bar-short" />
-        </div>
-      ))}
+    <div className="register-skeleton" role="status">
+      <span className="sr-only">{loading}</span>
+      <div aria-hidden="true">
+        {ROW_KEYS.map((key) => (
+          <div className="skeleton-row" key={key}>
+            <span className="skeleton-bar skeleton-bar-title" />
+            <span className="skeleton-bar" />
+            <span className="skeleton-bar" />
+            <span className="skeleton-bar skeleton-bar-short" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -25,11 +30,14 @@ export function RegisterSkeleton() {
  */
 export function DocumentSkeleton() {
   return (
-    <div aria-hidden="true" className="document-skeleton">
-      <span className="skeleton-bar skeleton-bar-title" />
-      <span className="skeleton-bar" />
-      <span className="skeleton-bar" />
-      <span className="skeleton-bar skeleton-bar-short" />
+    <div className="document-skeleton" role="status">
+      <span className="sr-only">{loading}</span>
+      <div aria-hidden="true" className="document-skeleton-bars">
+        <span className="skeleton-bar skeleton-bar-title" />
+        <span className="skeleton-bar" />
+        <span className="skeleton-bar" />
+        <span className="skeleton-bar skeleton-bar-short" />
+      </div>
     </div>
   );
 }

@@ -278,13 +278,20 @@ function isPlan(value: unknown): value is LessonPlanRecord {
 /**
  * Checks the note fields the timeline reads.
  * @param value - Candidate note.
- * @returns True when id, body, and createdAt are strings.
+ * @returns True when id, body, kind, author name, and createdAt are strings.
  */
 function isNote(value: unknown): value is ReviewNoteRecord {
   if (!isRecord(value)) {
     return false;
   }
-  return typeof value.id === 'string' && typeof value.body === 'string' && typeof value.createdAt === 'string';
+  return (
+    typeof value.id === 'string' &&
+    typeof value.body === 'string' &&
+    typeof value.kind === 'string' &&
+    typeof value.authorName === 'string' &&
+    (value.authorRole === 'TEACHER' || value.authorRole === 'HOD') &&
+    typeof value.createdAt === 'string'
+  );
 }
 
 /**

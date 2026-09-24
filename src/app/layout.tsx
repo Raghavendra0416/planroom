@@ -5,7 +5,7 @@ import { Footer } from '@/frontend/components/layout/Footer';
 import { SiteHeader } from '@/frontend/components/layout/SiteHeader';
 import { SessionProvider } from '@/frontend/contexts/SessionContext';
 import { ToastProvider } from '@/frontend/contexts/ToastContext';
-import { homeTitle } from '@/frontend/copy';
+import { homeTitle, skipLink } from '@/frontend/copy';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -26,8 +26,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <SessionProvider>
           <ToastProvider>
+            <a className="skip-link" href="#main">
+              {skipLink}
+            </a>
             <SiteHeader />
-            {children}
+            <main id="main" tabIndex={-1}>
+              {children}
+            </main>
             <Footer fullName={footer.fullName} githubUrl={footer.githubUrl} linkedinUrl={footer.linkedinUrl} />
           </ToastProvider>
         </SessionProvider>

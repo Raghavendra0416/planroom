@@ -19,8 +19,12 @@ describe('auth proxy', () => {
     expect(location('/hod/queue')).toBe('http://localhost:3000/login');
   });
 
+  it('sends signed-out visitors from home to login', () => {
+    expect(location('/')).toBe('http://localhost:3000/login');
+    expect(location('/', 'planroom_session=token')).toBeNull();
+  });
+
   it('does not redirect public pages, auth API routes, or a request that has the cookie', () => {
-    expect(location('/')).toBeNull();
     expect(location('/login')).toBeNull();
     expect(location('/register')).toBeNull();
     expect(location('/api/auth/login')).toBeNull();

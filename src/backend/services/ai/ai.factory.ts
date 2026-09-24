@@ -1,5 +1,5 @@
 import { GeminiSuggester } from '@/backend/services/ai/gemini.suggester';
-import type { ObjectiveSuggester } from '@/backend/services/ai/objective-suggester';
+import type { LessonSuggester } from '@/backend/services/ai/lesson-suggester';
 import { OpenAiCompatibleSuggester } from '@/backend/services/ai/openai-compatible.suggester';
 import { ConfigurationError } from '@/backend/utils/errors';
 
@@ -8,7 +8,7 @@ const DEFAULT_TIMEOUT_MS = 15000;
 /**
  * Configuration the factory reads. `ai.provider` selects the suggester class.
  */
-export interface ObjectiveSuggesterConfig {
+export interface LessonSuggesterConfig {
   ai: {
     provider: string;
     model: string;
@@ -18,21 +18,21 @@ export interface ObjectiveSuggesterConfig {
 }
 
 /**
- * Builds the objective suggester selected by `config.ai.provider`.
+ * Builds the lesson suggester selected by `config.ai.provider`.
  * @param config - Application configuration. Only `openai-compatible` and `gemini` are supported.
  * @returns The suggester for that provider.
  * @throws {ConfigurationError} When `ai.provider` is unknown or an empty string.
  * @example
- * const suggester = createObjectiveSuggester({
+ * const suggester = createLessonSuggester({
  *   ai: { provider: 'openai-compatible', model: 'gpt-4o-mini', timeoutMs: 15000 },
  * });
- * const objectives = await suggester.suggest({
+ * const suggestions = await suggester.suggest({
  *   topic: 'Fractions',
  *   subject: 'Maths',
  *   grade: 6,
  * });
  */
-export function createObjectiveSuggester(config: ObjectiveSuggesterConfig): ObjectiveSuggester {
+export function createLessonSuggester(config: LessonSuggesterConfig): LessonSuggester {
   const timeoutMs = config.ai.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const model = config.ai.model;
   const supportsStructuredOutputs = config.ai.supportsStructuredOutputs;

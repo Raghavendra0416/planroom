@@ -3,9 +3,10 @@
 import { Dialog, useDialogTitleId } from '@/frontend/components/ui/dialog';
 import { Button } from '@/frontend/components/ui/button';
 import { FieldError } from '@/frontend/components/plans/FieldError';
+import { cancel } from '@/frontend/copy';
 
 /**
- * Note sheet for send back, reopen, and comment. Confirm is quiet. Escape closes it and does not save.
+ * Note sheet for send back, reopen, and comment. Escape closes it and does not save.
  * @param props - Dialog props.
  * @param props.label - Action name used as the title and the confirm button.
  * @param props.note - Current note text.
@@ -37,19 +38,26 @@ export function NoteDialog({
 
   return (
     <Dialog open title={label} titleId={titleId} onOpenChange={onOpenChange}>
+      <label className="sr-only" htmlFor="review-note">
+        {label}
+      </label>
       <textarea
         aria-describedby={error ? 'review-note-error' : undefined}
         aria-invalid={error ? true : undefined}
-        aria-labelledby={titleId}
         className={error ? 'has-error' : undefined}
         id="review-note"
         value={note}
         onChange={(event) => onNoteChange(event.target.value)}
       />
       <FieldError id="review-note-error" message={error} />
-      <Button disabled={pending} type="button" variant="quiet" onClick={onConfirm}>
-        {label}
-      </Button>
+      <div className="sheet-actions">
+        <Button disabled={pending} type="button" variant="quiet" onClick={() => onOpenChange(false)}>
+          {cancel}
+        </Button>
+        <Button disabled={pending} type="button" onClick={onConfirm}>
+          {label}
+        </Button>
+      </div>
     </Dialog>
   );
 }
