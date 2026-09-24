@@ -37,7 +37,10 @@ describe('session cookie', () => {
     setEnv('AUTH_SECRET', 'test-secret');
     const config = loadConfig();
     const token = signSession('abc123', config);
-    const flipped = token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a');
+    const [signedPayload, signedSignature] = token.split('.');
+    const signatureBytes = Buffer.from(signedSignature, 'base64url');
+    signatureBytes[0] ^= 1;
+    const flipped = `${signedPayload}.${signatureBytes.toString('base64url')}`;
     const payload = Buffer.from(JSON.stringify({ sub: 'abc123', exp: 1 }), 'utf8').toString('base64url');
     const signature = createHmac('sha256', 'test-secret').update(payload).digest('base64url');
 
