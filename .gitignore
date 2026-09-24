@@ -15,3 +15,5 @@ playwright/.cache/
 next-env.d.ts
 .vercel
 .commandcode
+.vercel
+.env*
