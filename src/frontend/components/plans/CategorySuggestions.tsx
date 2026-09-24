@@ -56,7 +56,6 @@ export function CategorySuggestions({
   const [rows, setRows] = useState<SuggestionRow[]>(() => toRows(category, batch, lines));
   const timers = useRef<number[]>([]);
   const consumed = useRef(false);
-  const batchRef = useRef(batch);
   const listRef = useRef<HTMLUListElement | null>(null);
 
   useEffect(() => {
@@ -69,25 +68,14 @@ export function CategorySuggestions({
   }, []);
 
   useEffect(() => {
-    if (batch === batchRef.current) {
-      return;
-    }
-    batchRef.current = batch;
-    consumed.current = false;
-    if (lines.length > 0) {
-      setRows(toRows(category, batch, lines));
-    }
-  }, [batch, category, lines]);
-
-  useEffect(() => {
     if (consumed.current) {
       return;
     }
-    if (batchRef.current === batch && rows.length === 0 && lines.length > 0) {
+    if (rows.length === 0 && lines.length > 0) {
       consumed.current = true;
       onConsumed();
     }
-  }, [rows, lines, batch, onConsumed]);
+  }, [rows, lines, onConsumed]);
 
   function removeRows(ids: ReadonlySet<string>): void {
     setRows((current) => current.filter((row) => !ids.has(row.id)));

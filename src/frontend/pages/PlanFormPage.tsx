@@ -314,7 +314,6 @@ function PlanEditor({
     canSuggest,
     suggesting,
     notice,
-    previews,
     morePending,
     suggest: requestLesson,
     suggestMoreFor,
@@ -680,8 +679,6 @@ function focusFirstInvalid(resultFields: Record<string, string>): void {
   }
 }
 
-const CATEGORIES: SuggestionCategory[] = ['objectives', 'activities', 'resources'];
-
 /**
  * One field's suggestion block rendered directly beneath that field.
  * @param props - Category lines plus the editor callbacks that own them.
@@ -720,6 +717,7 @@ function CategoryBlock({
   return (
     <div className="field-suggestions">
       <CategorySuggestions
+        key={batch}
         category={category}
         lines={lines}
         batch={batch}
