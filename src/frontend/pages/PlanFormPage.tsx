@@ -271,7 +271,7 @@ function ClosedPlan({ plan }: { plan: LessonPlanRecord }) {
 }
 
 /**
- * Savable plan form. Save draft stays quiet, except a submitted edit returns to draft. Save and submit is the primary action.
+ * Savable plan form. Save draft stays quiet. Save and submit is the primary action.
  * @param props - Editor props.
  * @param props.heading - Page heading.
  * @param props.planId - Present when this save should update a plan.
@@ -314,6 +314,7 @@ function PlanEditor({
     canSuggest,
     suggesting,
     notice,
+    previews,
     morePending,
     suggest: requestLesson,
     suggestMoreFor,
@@ -679,6 +680,8 @@ function focusFirstInvalid(resultFields: Record<string, string>): void {
   }
 }
 
+const CATEGORIES: SuggestionCategory[] = ['objectives', 'activities', 'resources'];
+
 /**
  * One field's suggestion block rendered directly beneath that field.
  * @param props - Category lines plus the editor callbacks that own them.
@@ -717,7 +720,6 @@ function CategoryBlock({
   return (
     <div className="field-suggestions">
       <CategorySuggestions
-        key={batch}
         category={category}
         lines={lines}
         batch={batch}

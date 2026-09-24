@@ -12,13 +12,13 @@ type ButtonProps = {
 };
 
 /**
- * Ink, quiet, or danger action with a 44px target and no hover motion.
+ * Primary, quiet, or danger action with a 44px target and no hover motion.
  * @param props - Variant, optional destination, and button behavior.
- * @param props.variant - `primary` fills with ink. `quiet` is a rule outline. `danger` is oxide red. Defaults to primary.
+ * @param props.variant - `primary` fills with library green. `quiet` is a sheet outline. `danger` is oxide red. Defaults to primary.
  * @param props.href - When set, renders a link instead of a button.
  * @param props.children - Visible label.
  * @param props.type - Button type when this is not a link.
- * @param props.disabled - Applies the pencil-on-paper disabled treatment.
+ * @param props.disabled - Applies the paper disabled treatment.
  * @param props.onClick - Click handler for a button.
  * @returns A button, or a link when `href` is set.
  */

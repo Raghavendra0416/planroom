@@ -42,7 +42,7 @@ export function SiteHeader() {
           <Link href="/plans">{navPlans}</Link>
           {actor.role === 'TEACHER' ? <Button href="/plans/new">{newPlan}</Button> : null}
           {actor.role === 'HOD' ? <Link href="/hod">{navQueue}</Link> : null}
-          <Button type="button" variant="danger" onClick={() => void onSignOut()}>
+          <Button type="button" variant="quiet" onClick={() => void onSignOut()}>
             {signOut}
           </Button>
         </nav>

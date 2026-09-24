@@ -362,19 +362,23 @@ textarea {
 }
 
 .btn-primary {
-  background: var(--ink);
+  background: var(--library-green);
   color: var(--on-ink);
-  border: 1px solid var(--ink);
+  border: 1px solid var(--library-green);
   box-shadow: 0 1px 2px rgba(28, 25, 21, 0.15);
 }
 
 .btn-primary:hover {
-  background: #332d26;
-  border-color: #332d26;
+  background: #1f3f31;
+  border-color: #1f3f31;
+  color: var(--on-ink);
 }
 
 .btn-primary:active {
   transform: translateY(1px);
+  background: #1a3529;
+  border-color: #1a3529;
+  color: var(--on-ink);
 }
 
 .btn-quiet {
@@ -386,10 +390,14 @@ textarea {
 .btn-quiet:hover {
   background: #f0e8db;
   border-color: var(--pencil);
+  color: var(--ink);
 }
 
 .btn-quiet:active {
   transform: translateY(1px);
+  background: #e9dfcf;
+  border-color: var(--pencil);
+  color: var(--ink);
 }
 
 .btn-danger {
@@ -400,21 +408,38 @@ textarea {
 }
 
 .btn-danger:hover {
-  background: #752f2a;
-  border-color: #752f2a;
+  background: #6b2a25;
+  border-color: #6b2a25;
+  color: var(--on-ink);
 }
 
 .btn-danger:active {
   transform: translateY(1px);
+  background: #5f2521;
+  border-color: #5f2521;
+  color: var(--on-ink);
 }
 
 .btn:disabled {
-  background: #ECE6DC;
-  color: #57534A;
-  border: 1px solid var(--pencil);
+  background: var(--paper);
+  color: var(--pencil);
+  border: 1px solid var(--rule);
   cursor: not-allowed;
   box-shadow: none;
   opacity: 1;
+}
+
+.btn:disabled:hover,
+.btn:disabled:active {
+  background: var(--paper);
+  color: var(--pencil);
+  border-color: var(--rule);
+  transform: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 .btn-primary:visited,
@@ -469,13 +494,16 @@ textarea {
    ========================================================================== */
 
 .toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   position: fixed;
   z-index: 40;
   right: auto;
   bottom: 24px;
   left: 24px;
   max-width: 32rem;
-  padding: 14px 20px;
+  padding: 14px 16px 14px 20px;
   border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--on-ink);
@@ -486,17 +514,58 @@ textarea {
   font-weight: 400;
   line-height: 1.45;
   opacity: 0;
-  transition: opacity 150ms ease-in-out;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 150ms ease-in-out, visibility 150ms ease-in-out;
 }
 
 .toast.is-shown {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--on-ink);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  background: rgba(250, 247, 242, 0.14);
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid var(--on-ink);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .toast {
-    opacity: 1;
     transition: none;
+  }
+
+  .toast:not(.is-shown) {
+    opacity: 0;
+    visibility: hidden;
   }
 
   .register-row,
@@ -817,7 +886,7 @@ textarea.has-error,
   list-style: none;
 }
 
-.register > li {
+.register>li {
   margin: 0;
   padding: 0;
 }
@@ -897,6 +966,7 @@ textarea.has-error,
   color: var(--pencil);
   background: rgba(110, 104, 95, 0.06);
 }
+
 .status-stamp-DRAFT {
   background: var(--pencil);
 }
@@ -907,6 +977,7 @@ textarea.has-error,
   color: var(--ochre);
   background: var(--ochre-bg);
 }
+
 .status-stamp-SUBMITTED {
   background: var(--ochre);
 }
@@ -917,6 +988,7 @@ textarea.has-error,
   color: var(--oxide);
   background: var(--oxide-bg);
 }
+
 .status-stamp-CHANGES_REQUESTED {
   background: var(--oxide);
 }
@@ -927,6 +999,7 @@ textarea.has-error,
   color: var(--library-green);
   background: var(--library-green-bg);
 }
+
 .status-stamp-APPROVED {
   background: var(--library-green);
 }
@@ -944,8 +1017,15 @@ textarea.has-error,
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .skeleton-bar-title {
@@ -1023,7 +1103,7 @@ textarea.has-error,
   padding: 0;
 }
 
-.plan-document dl > div {
+.plan-document dl>div {
   margin: 16px 0 0;
 }
 
