@@ -11,6 +11,7 @@ const expected = {
   signIn: 'Sign in',
   signOut: 'Sign out',
   loginDemo: 'Try it as a teacher or as HOD. Accounts are on this page.',
+  passwordDemo: 'planroom',
   navPlans: 'Plans',
   navQueue: 'Review queue',
   newPlan: 'New plan',
