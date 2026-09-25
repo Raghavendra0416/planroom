@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['mongoose'],
-  allowedDevOrigins: ['127.0.0.1'],
+  allowedDevOrigins: ['192.168.10.4'],
 };
 
 export default nextConfig;

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/frontend/components/ui/button';
-import { hodDemo, loginDemo, register, signIn, signInFail, teacherDemo } from '@/frontend/copy';
+import { hodDemo, passwordDemo, loginDemo, register, signIn, signInFail, teacherDemo } from '@/frontend/copy';
 import { useSession } from '@/frontend/contexts/SessionContext';
 
 /**
@@ -85,8 +85,11 @@ export function LoginPage() {
       ) : null}
       <div className="demo-box">
         <p>{loginDemo}</p>
+        <p>Demo Accounts:</p>
         <p>{teacherDemo}</p>
         <p>{hodDemo}</p>
+        <p>Demo Password:</p>
+        <p>{passwordDemo}</p>
       </div>
       <p className="auth-switch">
         <Link href="/register">{register}</Link>

@@ -193,6 +193,8 @@ export const teacherDemo = 'teacher@planroom.demo';
 
 export const hodDemo = 'hod@planroom.demo';
 
+export const passwordDemo = 'planroom';
+
 export const github = 'GitHub';
 
 export const linkedin = 'LinkedIn';
